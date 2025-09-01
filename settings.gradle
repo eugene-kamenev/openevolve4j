@@ -1,0 +1,3 @@
+rootProject.name = 'openevolve4j'
+
+include 'openevolve4j-core', 'openevolve4j-web'
