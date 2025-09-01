@@ -1,0 +1,5 @@
+- Analyze the provided solutions and their metrics.
+- Before providing the code, output the reasoning for the changes you plan to make.
+- Identify strengths and weaknesses of each approach.
+- Pick the best from parent solutions, and propose a **new solution** that aims to outperform the parents.
+- The new solution MUST BE original (not just a copy-paste hybrid).

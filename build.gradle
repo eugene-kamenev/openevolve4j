@@ -1,0 +1,53 @@
+plugins {
+	id 'org.springframework.boot' version '3.5.4' apply false
+	id 'io.spring.dependency-management' version '1.1.7' apply false
+}
+
+allprojects {
+	apply plugin: 'java'
+    apply plugin: 'io.spring.dependency-management'
+
+	group = 'openevolve4j'
+	version = '0.0.1-SNAPSHOT'
+
+
+	java {
+		toolchain {
+			languageVersion = JavaLanguageVersion.of(24)
+		}
+	}
+
+	repositories {
+		mavenLocal()
+		mavenCentral()
+	}
+
+	ext {
+		set('springAiVersion', "1.0.1")
+		set('springBootVersion', "3.5.4")
+	}
+
+	compileJava {
+        // required for reflection to read parameter names
+        options.compilerArgs += ['-parameters']
+    }
+
+	dependencyManagement {
+		imports {
+            mavenBom "org.springframework.boot:spring-boot-dependencies:${springBootVersion}"
+			mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
+		}
+	}
+
+	dependencies {
+		testImplementation 'org.junit.jupiter:junit-jupiter'
+		testImplementation 'org.mockito:mockito-core'
+		testImplementation 'org.mockito:mockito-junit-jupiter'
+		testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	}
+
+	tasks.named('test') {
+        useJUnitPlatform()
+        jvmArgs '--enable-native-access=ALL-UNNAMED'
+    }
+}
