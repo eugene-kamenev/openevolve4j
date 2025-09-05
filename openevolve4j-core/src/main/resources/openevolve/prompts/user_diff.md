@@ -1,7 +1,7 @@
 # Task
 {task}
 
-# Solution Parents
+# Parent Solutions
 {parents}
 
 {solution}

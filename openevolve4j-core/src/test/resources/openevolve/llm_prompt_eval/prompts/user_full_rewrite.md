@@ -1,4 +1,4 @@
-# Solution Parents
+# Parent Solutions
 {parents}
 
 {solution}
