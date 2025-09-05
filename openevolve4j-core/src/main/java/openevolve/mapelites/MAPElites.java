@@ -190,8 +190,7 @@ public class MAPElites<T> {
 	}
 
 	private boolean shouldStop() {
-		var best = repository.findAll().getFirst();
-		return stopCondition.test(best);
+		return stopCondition.test(repository.best());
 	}
 
 	private void evolveIsland(Island island, int iteration) {
@@ -216,10 +215,9 @@ public class MAPElites<T> {
 		var solution = new Solution<T>(UUID.randomUUID(), evolved, null, fitness, iteration, island.id(), coords);
 		var bestBefore = repository.best();
 		addToGrid(solution);
-		if (bestBefore == null || repository.dominates(solution, bestBefore)) {
+		if (bestBefore == null || repository.best().id().equals(solution.id())) {
 			// best solution is the same solution now
-			callListeners(listener -> listener.onNewBestSolution(solution,
-					bestBefore, iteration));
+			callListeners(listener -> listener.onNewBestSolution(solution, bestBefore, iteration));
 		}
 		return solution;
 	}

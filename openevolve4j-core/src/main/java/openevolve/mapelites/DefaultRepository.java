@@ -23,6 +23,7 @@ public class DefaultRepository<T> implements Repository<T> {
 	private final int populationSize;
 	private final int archiveSize;
 	private Island currentIsland;
+	private Solution<T> bestSolution;
 
 	public DefaultRepository(Comparator<Solution<T>> comparator, int populationSize,
 			int archiveSize, int numIslands) {
@@ -47,7 +48,7 @@ public class DefaultRepository<T> implements Repository<T> {
 
 	@Override
 	public Solution<T> best() {
-		return solutions.isEmpty() ? null : solutions.first();
+		return bestSolution;
 	}
 
 	@Override
@@ -136,6 +137,9 @@ public class DefaultRepository<T> implements Repository<T> {
 		solutionsById.put(solution.id(), solution);
 		solutions.add(solution);
 		islands.get(solution.islandId()).archive().add(solution.id());
+		if (bestSolution == null || dominates(solution, bestSolution)) {
+			bestSolution = solution;
+		}
 		afterSave(solution);
 	}
 
@@ -185,7 +189,7 @@ public class DefaultRepository<T> implements Repository<T> {
 	private void afterSave(Solution<T> saved) {
 		int count = solutions.size();
 		if (count >= populationSize) {
-			var bestSolutionId = solutions.first().id();
+			var bestSolutionId = bestSolution.id();
 			var protectedSolutions = new HashSet<UUID>();
 			protectedSolutions.add(saved.id());
 			protectedSolutions.add(bestSolutionId);
