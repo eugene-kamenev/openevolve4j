@@ -278,62 +278,38 @@ const ConfigManager = () => {
   };
 
   return (
-    <div className="config-manager">
-      <header className="config-header">
-        <div className="header-title">
-          <Settings className="header-icon" />
-          <h1>OpenEvolve Configuration Manager</h1>
-        </div>
-        
+    <div className="col gap-4">
+      {/* Inline toolbar specific to list/form */}
+      <div className="row gap-3" style={{marginBottom:4}}>
         {viewMode === 'list' && (
-          <div className="header-actions">
-            <button 
-              className="btn btn-primary"
-              onClick={handleCreateNew}
-            >
-              <Plus size={18} />
-              New Config
-            </button>
-            
-            <label className="btn btn-secondary file-input-label">
-              <Upload size={18} />
-              Import
-              <input
-                type="file"
-                accept=".yml,.yaml,.json"
-                onChange={handleImport}
-                style={{ display: 'none' }}
-              />
+          <>
+            <button className="oe-btn primary" onClick={handleCreateNew}><Plus size={16}/> New</button>
+            <label className="oe-btn outline" style={{cursor:'pointer'}}>
+              <Upload size={16}/> Import
+              <input type="file" accept=".yml,.yaml,.json" style={{display:'none'}} onChange={handleImport} />
             </label>
-          </div>
+          </>
         )}
-
         {(viewMode === 'edit' || viewMode === 'create') && (
-          <div className="header-actions">
-            <button 
-              className="btn btn-secondary"
-              onClick={handleCancel}
-            >
-              Cancel
-            </button>
-          </div>
+          <button className="oe-btn ghost" onClick={handleCancel}>Cancel</button>
         )}
-      </header>
+      </div>
 
-      <main className="config-content">
-        {error && (
-          <div className="error-banner">
-            <p>{error}</p>
-            <button onClick={() => setError(null)}>×</button>
+      {error && (
+        <div className="oe-surface p-4" style={{borderColor:'var(--oe-danger)'}}>
+          <div className="row justify-between align-center">
+            <span style={{color:'var(--oe-danger)'}}>{error}</span>
+            <button className="oe-btn ghost sm" onClick={()=>setError(null)}>Dismiss</button>
           </div>
-        )}
-        
-        {loading && (
-          <div className="loading-overlay">
-            <div className="loading-spinner">Loading...</div>
-          </div>
-        )}
+        </div>
+      )}
+      {loading && (
+        <div className="oe-surface p-4" style={{borderColor:'var(--oe-accent)'}}>
+          <span className="text-dim">Working…</span>
+        </div>
+      )}
 
+      <div className="oe-surface elevated p-5 animate-fade-in">
         {viewMode === 'list' && (
           <ConfigList
             configs={configs}
@@ -344,7 +320,6 @@ const ConfigManager = () => {
             disabled={loading}
           />
         )}
-
         {(viewMode === 'edit' || viewMode === 'create') && (
           <ConfigForm
             config={selectedConfig}
@@ -354,7 +329,7 @@ const ConfigManager = () => {
             disabled={loading}
           />
         )}
-      </main>
+      </div>
     </div>
   );
 };
