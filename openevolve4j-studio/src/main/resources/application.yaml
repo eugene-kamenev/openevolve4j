@@ -1,0 +1,12 @@
+---
+spring:
+  application:
+    name: "openevolve4j-web"
+  main:
+    web-application-type: "reactive"
+server:
+  port: 7070
+
+---
+openevolve:
+  path: /home/ubuntu/IdeaProjects/openevolve4j/openevolve4j-core/src/test/resources/openevolve
