@@ -215,47 +215,6 @@ public class CodeParsingUtils {
     }
 
     /**
-     * Calculate the Levenshtein edit distance between two code snippets
-     *
-     * @param code1 First code snippet
-     * @param code2 Second code snippet
-     * @return Edit distance (number of operations needed to transform code1 into code2)
-     */
-    public static int calculateEditDistance(String code1, String code2) {
-        if (code1.equals(code2)) {
-            return 0;
-        }
-
-        int m = code1.length();
-        int n = code2.length();
-        int[][] dp = new int[m + 1][n + 1];
-
-        // Initialize first row and column
-        for (int i = 0; i <= m; i++) {
-            dp[i][0] = i;
-        }
-        for (int j = 0; j <= n; j++) {
-            dp[0][j] = j;
-        }
-
-        // Fill the dp table
-        for (int i = 1; i <= m; i++) {
-            for (int j = 1; j <= n; j++) {
-                int cost = code1.charAt(i - 1) == code2.charAt(j - 1) ? 0 : 1;
-                dp[i][j] = Math.min(
-                    Math.min(
-                        dp[i - 1][j] + 1,      // deletion
-                        dp[i][j - 1] + 1       // insertion
-                    ),
-                    dp[i - 1][j - 1] + cost    // substitution
-                );
-            }
-        }
-
-        return dp[m][n];
-    }
-
-    /**
      * Try to determine the language of a code snippet
      *
      * @param code Code snippet

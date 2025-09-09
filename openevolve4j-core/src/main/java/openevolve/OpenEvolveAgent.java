@@ -37,7 +37,7 @@ public class OpenEvolveAgent extends BaseAgent implements Function<EvolveStep, E
 		int i = 1;
 		List<Solution<EvolveSolution>> solutions =
 				Stream.of(step.topSolutions().stream(), step.inspirations().stream(),
-						step.previousSolutions().stream()).flatMap(Function.identity()).toList();
+						step.previousSolutions().stream()).flatMap(Function.identity()).distinct().toList();
 		if (!solutions.isEmpty()) {
 			for (var p : solutions) {
 				parentsBuilder.append(renderSolution(p, "Parent Solution " + i)).append("\n---\n");
@@ -52,7 +52,11 @@ public class OpenEvolveAgent extends BaseAgent implements Function<EvolveStep, E
 		String response = null;
 		int count = 0;
 		while (response == null && count < 2) {
-			response = client.prompt(new Prompt(systemPrompt, userPrompt)).call().content();
+			try {
+				response = client.prompt(new Prompt(systemPrompt, userPrompt)).call().content();
+			} catch (Throwable t) {
+				// ignored
+			}
 			count++;
 		}
 		return newSolution(step, response);

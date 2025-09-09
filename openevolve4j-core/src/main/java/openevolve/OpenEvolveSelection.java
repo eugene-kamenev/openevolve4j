@@ -59,15 +59,10 @@ public class OpenEvolveSelection
 	}
 
 	protected Solution<EvolveSolution> sampleExplorationParent(Island t) {
-		var all = repository.findAll();
 		var currentIslandPrograms = repository.findByIslandId(t.id());
 		if (currentIslandPrograms.isEmpty()) {
-			if (!all.isEmpty()) {
-				return all.get(0);
-			}
-			return repository.findAll().iterator().next();
+			return repository.best();
 		}
-
 		return currentIslandPrograms.get(random.nextInt(currentIslandPrograms.size()));
 	}
 

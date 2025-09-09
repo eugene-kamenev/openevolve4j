@@ -43,7 +43,7 @@ public class MAPElitesLoggingListener<T> implements MAPElitesListener<T> {
 	@Override
 	public void onNewBestSolution(Solution<T> newBest, Solution<T> previousBest, int iteration) {
 		if (LOG.isInfoEnabled()) {
-			LOG.info("🏆 New best solution found at iteration {}: {}", iteration, newBest);
+			LOG.info("🏆 New best solution found at iteration {}: {} (previous: {})", iteration, newBest, previousBest);
 		}
 	}
 

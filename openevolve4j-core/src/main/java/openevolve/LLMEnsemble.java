@@ -1,6 +1,7 @@
 package openevolve;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Random;
 import org.springframework.ai.chat.client.ChatClient;
@@ -31,5 +32,9 @@ public class LLMEnsemble {
 
 	public ChatClient sample() {
 		return llms.get(keys[random.nextInt(keys.length)]);
+	}
+
+	public Iterator<ChatClient> iterator() {
+		return llms.values().iterator();
 	}
 }
