@@ -135,7 +135,7 @@ public record Event<T extends Event.Payload>(String id, T payload) {
 		@Override
 		public Mono<ConfigDeleted> get() {
 			return getBean(ConfigService.class)
-				.map(s -> s.save(null, id))
+				.map(s -> s.delete(id))
 				.thenReturn(new ConfigDeleted(id));
 		}
 
