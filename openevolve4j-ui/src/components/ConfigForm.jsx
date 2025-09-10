@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Save, X, Info, Eye } from 'lucide-react';
+import { Save, X, Info, Eye, Code, Settings, GitBranch, Database, Map, Cpu } from 'lucide-react';
 import { OpenEvolveConfig } from '../OpenEvolveConfig';
 import YamlPreview from './YamlPreview';
 import FormGroup from './forms/FormGroup';
 import ArrayInput from './forms/ArrayInput';
 import MetricsSection from './forms/MetricsSection';
 import LLMSection from './forms/LLMSection';
+import './ConfigForm.css';
 
 const ConfigForm = ({ config, mode, onSave, onCancel }) => {
   const [formData, setFormData] = useState({
@@ -128,18 +129,21 @@ const ConfigForm = ({ config, mode, onSave, onCancel }) => {
 
   const tabs = [
     { id: 'general', label: 'General', icon: Info },
-    { id: 'solution', label: 'Solution' },
-    { id: 'evolution', label: 'Evolution' },
-    { id: 'repository', label: 'Repository' },
-    { id: 'mapelites', label: 'MAP-Elites' },
-    { id: 'llm', label: 'LLM' },
-    { id: 'metrics', label: 'Metrics' }
+    { id: 'solution', label: 'Solution', icon: Code },
+    { id: 'evolution', label: 'Evolution', icon: GitBranch },
+    { id: 'repository', label: 'Repository', icon: Database },
+    { id: 'mapelites', label: 'MAP-Elites', icon: Map },
+    { id: 'llm', label: 'LLM', icon: Cpu },
+    { id: 'metrics', label: 'Metrics', icon: Settings }
   ];
 
   const renderGeneralTab = () => (
     <div className="tab-content">
       <div className="form-section">
-        <h3>General Settings</h3>
+        <h3>
+          <Info size={20} />
+          General Settings
+        </h3>
         <FormGroup id="config-name" label="Configuration Name" required error={errors.name}>
           <input
             id="config-name"
@@ -167,7 +171,10 @@ const ConfigForm = ({ config, mode, onSave, onCancel }) => {
   const renderSolutionTab = () => (
     <div className="tab-content">
       <div className="form-section">
-        <h3>Solution Configuration</h3>
+        <h3>
+          <Code size={20} />
+          Solution Configuration
+        </h3>
         
         <FormGroup id="solution-path" label="Solution Path" required error={errors['solution.path']}>
           <input
@@ -248,7 +255,10 @@ const ConfigForm = ({ config, mode, onSave, onCancel }) => {
   const renderEvolutionTab = () => (
     <div className="tab-content">
       <div className="form-section">
-        <h3>Selection Parameters</h3>
+        <h3>
+          <GitBranch size={20} />
+          Selection Parameters
+        </h3>
         
         <div className="form-row">
           <FormGroup id="seed" label="Random Seed">
@@ -333,7 +343,10 @@ const ConfigForm = ({ config, mode, onSave, onCancel }) => {
       </div>
 
       <div className="form-section">
-        <h3>Migration Settings</h3>
+        <h3>
+          <Settings size={20} />
+          Migration Settings
+        </h3>
         
         <div className="form-row">
           <FormGroup id="migration-rate" label="Migration Rate">
@@ -365,7 +378,10 @@ const ConfigForm = ({ config, mode, onSave, onCancel }) => {
   const renderRepositoryTab = () => (
     <div className="tab-content">
       <div className="form-section">
-        <h3>Repository Configuration</h3>
+        <h3>
+          <Database size={20} />
+          Repository Configuration
+        </h3>
         
         <div className="form-row">
           <FormGroup id="population-size" label="Population Size">
@@ -417,7 +433,10 @@ const ConfigForm = ({ config, mode, onSave, onCancel }) => {
   const renderMapElitesTab = () => (
     <div className="tab-content">
       <div className="form-section">
-        <h3>MAP-Elites Configuration</h3>
+        <h3>
+          <Map size={20} />
+          MAP-Elites Configuration
+        </h3>
         
         <div className="form-row">
           <FormGroup id="num-iterations" label="Number of Iterations">

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Minus } from 'lucide-react';
+import { Plus, Minus, Target } from 'lucide-react';
 
 const MetricsSection = ({ metrics = {}, onChange }) => {
   const addMetric = () => {
@@ -19,10 +19,13 @@ const MetricsSection = ({ metrics = {}, onChange }) => {
   const updateMetricName = (oldName, newName) => {
     if (oldName === newName) return;
     
+    // Validate metric name (basic validation)
+    if (!newName.trim()) return;
+    
     const newMetrics = { ...metrics };
     const value = newMetrics[oldName];
     delete newMetrics[oldName];
-    newMetrics[newName] = value;
+    newMetrics[newName.trim()] = value;
     onChange(newMetrics);
   };
 
@@ -33,25 +36,36 @@ const MetricsSection = ({ metrics = {}, onChange }) => {
     });
   };
 
+  const hasMetrics = Object.keys(metrics).length > 0;
+
   return (
     <div className="form-section">
-      <h3>Metrics Configuration</h3>
-      <p className="field-help">Define metrics to optimize. Each metric can be set to maximize (true) or minimize (false).</p>
+      <h3>
+        <Target size={20} />
+        Metrics Configuration
+      </h3>
+      <p className="field-help">
+        Define metrics to optimize during evolution. Each metric can be set to maximize (improve by increasing) 
+        or minimize (improve by decreasing). Common metrics include accuracy, performance, complexity, etc.
+      </p>
       
       <div className="metrics-list">
         <div className="metrics-header">
           <span>Metric Name</span>
-          <span>Objective</span>
+          <span>Optimization Goal</span>
+          <span>Actions</span>
         </div>
         <div className="metrics-container">
-          {Object.entries(metrics).map(([metricName, isMaximize]) => (
-            <div key={metricName} className="metric-row">
+          {Object.entries(metrics).map(([metricName, isMaximize], index) => (
+            <div key={metricName} className="metric-row" style={{ animationDelay: `${index * 0.1}s` }}>
               <div className="metric-name-input">
                 <input
                   type="text"
                   value={metricName}
                   onChange={(e) => updateMetricName(metricName, e.target.value)}
-                  placeholder="Enter metric name"
+                  placeholder="Enter metric name (e.g., accuracy, speed)"
+                  aria-label={`Metric name: ${metricName}`}
+                  maxLength={50}
                 />
               </div>
               
@@ -59,9 +73,10 @@ const MetricsSection = ({ metrics = {}, onChange }) => {
                 <select
                   value={isMaximize ? 'maximize' : 'minimize'}
                   onChange={(e) => updateMetricValue(metricName, e.target.value === 'maximize')}
+                  aria-label={`Optimization goal for ${metricName}`}
                 >
-                  <option value="maximize">Maximize</option>
-                  <option value="minimize">Minimize</option>
+                  <option value="maximize">📈 Maximize (Higher is better)</option>
+                  <option value="minimize">📉 Minimize (Lower is better)</option>
                 </select>
               </div>
               
@@ -69,7 +84,8 @@ const MetricsSection = ({ metrics = {}, onChange }) => {
                 type="button"
                 onClick={() => removeMetric(metricName)}
                 className="btn-remove"
-                title="Remove metric"
+                title={`Remove ${metricName} metric`}
+                aria-label={`Remove ${metricName} metric`}
               >
                 <Minus size={16} />
               </button>
@@ -81,11 +97,21 @@ const MetricsSection = ({ metrics = {}, onChange }) => {
           type="button"
           onClick={addMetric}
           className="btn-add-metric"
+          aria-label="Add new metric"
         >
           <Plus size={16} />
-          Add Metric
+          Add New Metric
         </button>
       </div>
+      
+      {hasMetrics && (
+        <div className="metrics-summary">
+          <small className="field-help">
+            <strong>{Object.keys(metrics).length}</strong> metric{Object.keys(metrics).length !== 1 ? 's' : ''} defined. 
+            {' '}The evolution algorithm will optimize solutions based on these metrics.
+          </small>
+        </div>
+      )}
     </div>
   );
 };

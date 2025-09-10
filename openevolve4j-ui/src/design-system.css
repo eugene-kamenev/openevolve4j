@@ -12,6 +12,8 @@
   --oe-text-faint: #94a3b8;
   --oe-accent: #3b82f6;       /* primary */
   --oe-accent-accent: #60a5fa;
+  --oe-accent-subtle: rgba(59,130,246,0.15);
+  --oe-border-subtle: rgba(50,70,95,0.5);
   --oe-danger: #ef4444;
   --oe-warn: #f59e0b;
   --oe-success: #10b981;

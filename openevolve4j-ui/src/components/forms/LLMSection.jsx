@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Minus, Eye } from 'lucide-react';
+import { Plus, Minus, Eye, Cpu } from 'lucide-react';
 import FormGroup from './FormGroup';
 import LLMModelModal from './LLMModelModal';
 
@@ -38,7 +38,10 @@ const LLMSection = ({ data, onChange, errors = {} }) => {
 
   return (
     <div className="form-section">
-      <h3>LLM Configuration</h3>
+      <h3>
+        <Cpu size={20} />
+        LLM Configuration
+      </h3>
       
       <FormGroup
         id="api-url"

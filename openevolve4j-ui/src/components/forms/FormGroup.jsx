@@ -13,7 +13,7 @@ const FormGroup = ({
     <div className={`form-group ${className}`}>
       <label htmlFor={id}>
         {label}
-        {required && ' *'}
+        {required && <span className="required-indicator"> *</span>}
       </label>
       {children}
       {help && <small className="field-help">{help}</small>}

@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, createContext } from 'react';
 import { Settings, Plus, RefreshCw, CloudUpload, FolderOpen, Database, Activity, Layers } from 'lucide-react';
-import ConfigManager from './components/ConfigManager';
+import ConfigForm from './components/ConfigForm';
+import SidebarConfigList from './components/SidebarConfigList';
 import WebSocketService from './services/WebSocketService';
+import { OpenEvolveConfig } from './OpenEvolveConfig';
 import './design-system.css';
 import './App.css';
 
@@ -12,11 +14,135 @@ function App() {
   const ws = useRef(WebSocketService.getInstance());
   const [configs, setConfigs] = useState([]);
   const [wsStatus, setWsStatus] = useState('connecting'); // connecting | open | error
-  const [activeNav, setActiveNav] = useState('configs');
+  const [selectedConfig, setSelectedConfig] = useState(null);
+  const [viewMode, setViewMode] = useState('welcome'); // 'welcome', 'edit', 'create'
   const [lastSync, setLastSync] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const sendWsMessage = (event) => ws.current.send({ payload: event });
   const sendWsRequest = (event, timeout) => ws.current.sendRequest(event, timeout);
+
+  const createDefaultConfig = () => {
+    return new OpenEvolveConfig({
+      promptPath: "prompts",
+      solution: {
+        path: "solution",
+        runner: "run.sh",
+        evalTimeout: "PT120S",
+        fullRewrite: true,
+        language: "python",
+        pattern: ".*\\.py$"
+      },
+      selection: {
+        seed: 42,
+        explorationRatio: 0.1,
+        exploitationRatio: 0.1,
+        eliteSelectionRatio: 0.1,
+        numInspirations: 5,
+        numberDiverse: 5,
+        numberTop: 5
+      },
+      migration: {
+        rate: 0.1,
+        interval: 10
+      },
+      repository: {
+        checkpointInterval: 10,
+        populationSize: 50,
+        archiveSize: 10,
+        islands: 2
+      },
+      mapelites: {
+        numIterations: 100,
+        bins: 10,
+        dimensions: ["score", "complexity", "diversity"]
+      },
+      llm: {
+        models: [
+          { model: "gpt-4", temperature: 0.7 },
+          { model: "claude-3", temperature: 0.8 }
+        ],
+        apiUrl: "https://api.openai.com/v1",
+        apiKey: ""
+      },
+      metrics: {
+        score: true,
+        complexity: true,
+        diversity: true,
+        performance: false
+      }
+    });
+  };
+
+  const handleSelectConfig = (config) => {
+    setSelectedConfig(config);
+    setViewMode('edit');
+  };
+
+  const handleCreateNew = () => {
+    setSelectedConfig(createDefaultConfig());
+    setViewMode('create');
+  };
+
+  const handleSave = async (configData) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      if (viewMode === 'create') {
+        const configId = Date.now().toString();
+        
+        const response = await sendWsRequest({
+          type: 'CONFIG_CREATE',
+          id: configId,
+          config: configData
+        });
+        
+        const newConfig = {
+          id: configId,
+          name: configData.name || `Config ${configs.length + 1}`,
+          created: new Date().toISOString(),
+          modified: new Date().toISOString(),
+          config: configData
+        };
+        setConfigs(prev => [...prev, newConfig]);
+        setSelectedConfig(newConfig);
+        setViewMode('edit');
+        
+      } else if (viewMode === 'edit') {
+        const response = await sendWsRequest({
+          type: 'CONFIG_UPDATE',
+          id: selectedConfig.id,
+          config: configData
+        });
+        
+        const updatedConfig = {
+          ...selectedConfig,
+          config: configData,
+          modified: new Date().toISOString()
+        };
+        setConfigs(prev => prev.map(c => 
+          c.id === selectedConfig.id ? updatedConfig : c
+        ));
+        setSelectedConfig(updatedConfig);
+      }
+    } catch (error) {
+      console.error('Error saving configuration:', error);
+      setError(`Failed to save configuration: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancel = () => {
+    if (selectedConfig && selectedConfig.id) {
+      setViewMode('edit');
+    } else {
+      setViewMode('welcome');
+      setSelectedConfig(null);
+    }
+  };
 
   // Connection + event handling
   useEffect(() => {
@@ -81,19 +207,13 @@ function App() {
             <Settings />
             <span>OpenEvolve</span>
           </div>
-          <nav className="oe-nav">
-            <div className="oe-nav-group">
-              <button className={`oe-nav-btn ${activeNav==='configs'?'active':''}`} onClick={() => setActiveNav('configs')}>
-                <Database /> <span className="label">Configs</span>
-              </button>
-              <button className={`oe-nav-btn ${activeNav==='activity'?'active':''}`} onClick={() => setActiveNav('activity')}>
-                <Activity /> <span className="label">Activity</span>
-              </button>
-              <button className={`oe-nav-btn ${activeNav==='agents'?'active':''}`} onClick={() => setActiveNav('agents')}>
-                <Layers /> <span className="label">Agents</span>
-              </button>
-            </div>
-          </nav>
+          
+          <SidebarConfigList 
+            selectedConfigId={selectedConfig?.id}
+            onSelectConfig={handleSelectConfig}
+            onCreateNew={handleCreateNew}
+          />
+          
           <div className="oe-footer">
             <div className="row gap-2 align-center">
               {statusDot(wsStatus)}
@@ -105,27 +225,56 @@ function App() {
 
         {/* Top Bar */}
         <header className="oe-topbar">
-          <h2 className="mb-0" style={{fontSize:18, fontWeight:600}}>Configuration Manager</h2>
+          <h2 className="mb-0" style={{fontSize:18, fontWeight:600}}>
+            {viewMode === 'create' ? 'Create New Configuration' : 
+             viewMode === 'edit' ? `Edit: ${selectedConfig?.name || 'Configuration'}` : 
+             'OpenEvolve Configuration Manager'}
+          </h2>
           <div className="row gap-3">
-            <button className="oe-btn outline" onClick={() => setLastSync(new Date())}><RefreshCw size={16}/>Refresh</button>
-            <label className="oe-btn outline" style={{cursor:'pointer'}}>
-              <CloudUpload size={16}/> Import
-              <input type="file" accept=".yml,.yaml,.json" style={{display:'none'}} onChange={(e)=>{
-                // fire a synthetic event to ConfigManager via custom event bus in future; for now rely on inside component UI
-              }} />
-            </label>
+            <button className="oe-btn outline" onClick={() => setLastSync(new Date())}>
+              <RefreshCw size={16}/>Refresh
+            </button>
           </div>
         </header>
 
         {/* Main Content */}
         <main className="oe-content">
-          {activeNav === 'configs' && <ConfigManager />}
-          {activeNav !== 'configs' && (
-            <div className="oe-surface p-5" style={{minHeight:320}}>
-              <h3 style={{marginTop:0}}>Coming Soon</h3>
-              <p className="text-faint">The <strong>{activeNav}</strong> section is under construction.</p>
+          {error && (
+            <div className="oe-surface p-4" style={{borderColor:'var(--oe-danger)', marginBottom: 16}}>
+              <div className="row justify-between align-center">
+                <span style={{color:'var(--oe-danger)'}}>{error}</span>
+                <button className="oe-btn ghost sm" onClick={()=>setError(null)}>Dismiss</button>
+              </div>
             </div>
           )}
+          
+          {loading && (
+            <div className="oe-surface p-4" style={{borderColor:'var(--oe-accent)', marginBottom: 16}}>
+              <span className="text-dim">Working…</span>
+            </div>
+          )}
+
+          <div className="oe-surface elevated p-5 animate-fade-in">
+            {viewMode === 'welcome' && (
+              <div className="welcome-content">
+                <h3 style={{marginTop:0}}>Welcome to OpenEvolve</h3>
+                <p className="text-faint">Select a configuration from the sidebar to edit it, or create a new one to get started.</p>
+                <button className="oe-btn primary" onClick={handleCreateNew}>
+                  <Plus size={16}/> Create New Configuration
+                </button>
+              </div>
+            )}
+            
+            {(viewMode === 'edit' || viewMode === 'create') && (
+              <ConfigForm
+                config={selectedConfig}
+                mode={viewMode}
+                onSave={handleSave}
+                onCancel={handleCancel}
+                disabled={loading}
+              />
+            )}
+          </div>
         </main>
       </div>
     </ConfigContext.Provider>
