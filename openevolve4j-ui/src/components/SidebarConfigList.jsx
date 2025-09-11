@@ -245,12 +245,6 @@ const SidebarConfigList = ({ selectedConfigId, onSelectConfig, onCreateNew }) =>
                   <span className="config-language">
                     {config.config.solution?.language || 'unknown'}
                   </span>
-                  <span className="config-population">
-                    Pop: {config.config.repository?.populationSize || 0}
-                  </span>
-                </div>
-                <div className="config-date">
-                  {formatDate(config.modified)}
                 </div>
               </div>
             </div>

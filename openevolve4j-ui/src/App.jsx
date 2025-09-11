@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, createContext } from 'react';
 import { Settings, Plus, RefreshCw, CloudUpload, FolderOpen, Database, Activity, Layers } from 'lucide-react';
 import ConfigForm from './components/ConfigForm';
 import SidebarConfigList from './components/SidebarConfigList';
+import SolutionsView from './components/SolutionsView';
+import CheckpointsView from './components/CheckpointsView';
 import WebSocketService from './services/WebSocketService';
 import { OpenEvolveConfig } from './OpenEvolveConfig';
 import './design-system.css';
@@ -16,6 +18,7 @@ function App() {
   const [wsStatus, setWsStatus] = useState('connecting'); // connecting | open | error
   const [selectedConfig, setSelectedConfig] = useState(null);
   const [viewMode, setViewMode] = useState('welcome'); // 'welcome', 'edit', 'create'
+  const [activeTab, setActiveTab] = useState('configuration'); // 'configuration', 'solutions', 'checkpoints'
   const [lastSync, setLastSync] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -78,11 +81,13 @@ function App() {
   const handleSelectConfig = (config) => {
     setSelectedConfig(config);
     setViewMode('edit');
+    setActiveTab('configuration'); // Reset to configuration tab when selecting config
   };
 
   const handleCreateNew = () => {
     setSelectedConfig(createDefaultConfig());
     setViewMode('create');
+    setActiveTab('configuration'); // Reset to configuration tab when creating
   };
 
   const handleSave = async (configData) => {
@@ -225,11 +230,32 @@ function App() {
 
         {/* Top Bar */}
         <header className="oe-topbar">
-          <h2 className="mb-0" style={{fontSize:18, fontWeight:600}}>
-            {viewMode === 'create' ? 'Create New Configuration' : 
-             viewMode === 'edit' ? `Edit: ${selectedConfig?.name || 'Configuration'}` : 
-             'OpenEvolve Configuration Manager'}
-          </h2>
+          <div className="topbar-left">
+            <h2 className="mb-0" style={{fontSize:18, fontWeight:600}}>
+              {viewMode === 'create' ? 'Create New Configuration' : 
+               viewMode === 'edit' ? `${selectedConfig?.name || 'Configuration'}` : 
+               'OpenEvolve Configuration Manager'}
+            </h2>
+            
+            {/* Tab Navigation for edit mode */}
+            {viewMode === 'edit' && (
+              <div className="tab-navigation">
+                <button 
+                  className={`tab-btn ${activeTab === 'configuration' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('configuration')}
+                >
+                  <Settings size={14} /> Configuration
+                </button>
+                <button 
+                  className={`tab-btn ${activeTab === 'solutions' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('solutions')}
+                >
+                  <Activity size={14} /> Solutions
+                </button>
+              </div>
+            )}
+          </div>
+          
           <div className="row gap-3">
             <button className="oe-btn outline" onClick={() => setLastSync(new Date())}>
               <RefreshCw size={16}/>Refresh
@@ -266,13 +292,25 @@ function App() {
             )}
             
             {(viewMode === 'edit' || viewMode === 'create') && (
-              <ConfigForm
-                config={selectedConfig}
-                mode={viewMode}
-                onSave={handleSave}
-                onCancel={handleCancel}
-                disabled={loading}
-              />
+              <>
+                {activeTab === 'configuration' && (
+                  <ConfigForm
+                    config={selectedConfig}
+                    mode={viewMode}
+                    onSave={handleSave}
+                    onCancel={handleCancel}
+                    disabled={loading}
+                  />
+                )}
+                
+                {activeTab === 'solutions' && viewMode === 'edit' && (
+                  <SolutionsView config={selectedConfig} />
+                )}
+                
+                {activeTab === 'checkpoints' && viewMode === 'edit' && (
+                  <CheckpointsView config={selectedConfig} />
+                )}
+              </>
             )}
           </div>
         </main>
