@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, createContext } from 'react';
-import { Settings, Plus, RefreshCw, CloudUpload, FolderOpen, Database, Activity, Layers } from 'lucide-react';
+import { Settings, Plus, RefreshCw, CloudUpload, FolderOpen, Database, Activity, Layers, Target } from 'lucide-react';
 import ConfigForm from './components/ConfigForm';
 import SidebarConfigList from './components/SidebarConfigList';
 import SolutionsView from './components/SolutionsView';
+import EvolutionView from './components/EvolutionView';
 import WebSocketService from './services/WebSocketService';
 import { OpenEvolveConfig } from './Entity';
 import './design-system.css';
@@ -252,6 +253,12 @@ function App() {
                 >
                   <Activity size={14} /> Solutions
                 </button>
+                <button 
+                  className={`tab-btn ${activeTab === 'evolution' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('evolution')}
+                >
+                  <Target size={14} /> Evolution
+                </button>
               </div>
             )}
           </div>
@@ -305,6 +312,10 @@ function App() {
                 
                 {activeTab === 'solutions' && viewMode === 'edit' && (
                   <SolutionsView config={selectedConfig} />
+                )}
+                
+                {activeTab === 'evolution' && viewMode === 'edit' && (
+                  <EvolutionView config={selectedConfig} />
                 )}
                 
               </>

@@ -344,7 +344,7 @@ const SolutionsView = ({ config }) => {
                 <div className="detail-grid">
                   <div className="detail-item">
                     <span className="detail-label">Value:</span>
-                    <code className="metric-value">{JSON.stringify(selectedSolution.fitness, null, 2)}</code>
+                    <code className="json-code">{JSON.stringify(selectedSolution.fitness, null, 2)}</code>
                   </div>
                 </div>
               </div>
