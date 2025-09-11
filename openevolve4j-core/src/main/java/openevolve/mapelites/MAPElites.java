@@ -95,7 +95,6 @@ public class MAPElites<T> {
 
 	public void run(int iterations) {
 		if (!initialized) {
-			currentIteration = 1;
 			Listener.callAll(listeners, listener -> listener.onAlgorithmStart(this));
 			var initial = initialSolutionGenerator.get();
 			for (int i = 0; i < initial.size(); i++) {
@@ -121,6 +120,15 @@ public class MAPElites<T> {
 				LOG.error("Error occurred during MAP-Elites iteration", t);
 			}
 		}
+	}
+
+	public void reset(Map<String, Cell> grid, Map<String, FeatureScaler> featureStats, int iteration) {
+		this.grid.clear();
+		this.grid.putAll(grid);
+		this.featureStats.clear();
+		this.featureStats.putAll(featureStats);
+		this.currentIteration = iteration;
+		this.initialized = true;
 	}
 
 	public Map<String, Cell> getGrid() {

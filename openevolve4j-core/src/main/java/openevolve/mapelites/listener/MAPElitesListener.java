@@ -2,6 +2,7 @@ package openevolve.mapelites.listener;
 
 import java.nio.file.Path;
 import java.util.Map;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import openevolve.mapelites.FeatureScaler;
 import openevolve.mapelites.MAPElites;
@@ -97,21 +98,42 @@ public interface MAPElitesListener<T> extends Listener {
     public static class StateWriter<T> implements MAPElitesListener<T> {
         private final Path statePath;
         private final ObjectMapper mapper;
+        private State<T> currentState;
 
-        public StateWriter(Path statePath, ObjectMapper mapper) {
+        public StateWriter(Path statePath, ObjectMapper mapper, boolean restart) {
             this.statePath = statePath;
             this.mapper = mapper;
+            if (statePath.toFile().exists() && !restart) {
+                try {
+                    currentState = mapper.readValue(statePath.toFile(), new TypeReference<State<T>>() {});
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to read existing MAP-Elites state from " + statePath);
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        @Override
+        public void onAlgorithmStart(MAPElites<T> mapElites) {
+            if (currentState != null) {
+                mapElites.reset(currentState.grid, currentState.featureStats, currentState.iteration);
+                System.out.println("Resumed MAP-Elites from iteration " + currentState.iteration);
+            }
         }
 
         @Override
         public void onAfterIteration(Island island, int iteration, MAPElites<T> mapElites) {
-            State<T> state = new State<>(iteration, mapElites.getRepositoryState(), mapElites.getGrid(), mapElites.getFeatureStats());
+            currentState = new State<>(iteration, mapElites.getRepositoryState(), mapElites.getGrid(), mapElites.getFeatureStats());
             try {
-                mapper.writeValue(statePath.toFile(), state);
+                mapper.writeValue(statePath.toFile(), currentState);
             } catch (Exception e) {
                 System.err.println("Warning: Failed to write MAP-Elites state to " + statePath);
                 e.printStackTrace();
             }
+        }
+
+        public State<T> getCurrentState() {
+            return currentState;
         }
 
         public record State<T>(int iteration, RepositoryState repository, Map<String, Cell> grid, Map<String, FeatureScaler> featureStats) {
