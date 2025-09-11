@@ -6,6 +6,7 @@ import org.springframework.context.ApplicationContext;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import openevolve.OpenEvolveConfig;
+import openevolve.service.CommandService;
 import openevolve.service.ConfigService;
 import openevolve.service.OpenEvolveService;
 import reactor.core.publisher.Mono;
@@ -25,17 +26,17 @@ public record Event<T extends Event.Payload>(String id, T payload) {
 	}
 	public record ConfigDeleted(String id) implements Output {
 	}
-	public record Connected(Map<String, OpenEvolveConfig> existing) implements Output {
+	public record Connected(Map<String, OpenEvolveConfig> existing, Map<String, String> statuses) implements Output {
 	}
 
 	// Input commands
 	public static class Connect extends Input<Connected> {
 		@Override
 		public Mono<Connected> get() {
-			return getBean(ConfigService.class).map(s -> new Connected(s.reload()));
+			return getBean(CommandService.class)
+					.map(c -> c.connect());
 		}
 	}
-
 	public static class Start extends Input<Started> {
 		private String id;
 
@@ -148,16 +149,18 @@ public record Event<T extends Event.Payload>(String id, T payload) {
 		}
 	}
 
-	@JsonSubTypes({@JsonSubTypes.Type(value = Event.Connect.class, name = "CONNECT"),
-			@JsonSubTypes.Type(value = Event.Start.class, name = "START"),
-			@JsonSubTypes.Type(value = Event.Stop.class, name = "STOP"),
-			@JsonSubTypes.Type(value = Event.ConfigCreated.class, name = "CONFIG_CREATED"),
-			@JsonSubTypes.Type(value = Event.ConfigUpdated.class, name = "CONFIG_UPDATED"),
-			@JsonSubTypes.Type(value = Event.ConfigDeleted.class, name = "CONFIG_DELETED"),
-			@JsonSubTypes.Type(value = Event.Connected.class, name = "CONNECTED"),
-			@JsonSubTypes.Type(value = Event.CreateConfig.class, name = "CONFIG_CREATE"),
-			@JsonSubTypes.Type(value = Event.UpdateConfig.class, name = "CONFIG_UPDATE"),
-			@JsonSubTypes.Type(value = Event.DeleteConfig.class, name = "CONFIG_DELETE")})
+	@JsonSubTypes({
+		@JsonSubTypes.Type(value = Event.Connect.class, name = "CONNECT"),
+		@JsonSubTypes.Type(value = Event.Start.class, name = "START"),
+		@JsonSubTypes.Type(value = Event.Stop.class, name = "STOP"),
+		@JsonSubTypes.Type(value = Event.ConfigCreated.class, name = "CONFIG_CREATED"),
+		@JsonSubTypes.Type(value = Event.ConfigUpdated.class, name = "CONFIG_UPDATED"),
+		@JsonSubTypes.Type(value = Event.ConfigDeleted.class, name = "CONFIG_DELETED"),
+		@JsonSubTypes.Type(value = Event.Connected.class, name = "CONNECTED"),
+		@JsonSubTypes.Type(value = Event.CreateConfig.class, name = "CONFIG_CREATE"),
+		@JsonSubTypes.Type(value = Event.UpdateConfig.class, name = "CONFIG_UPDATE"),
+		@JsonSubTypes.Type(value = Event.DeleteConfig.class, name = "CONFIG_DELETE")
+	})
 	@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "type")
 	public static interface Payload {
 	}

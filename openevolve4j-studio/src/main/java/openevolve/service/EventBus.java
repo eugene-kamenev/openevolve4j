@@ -13,7 +13,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 
 @Service
-public class EventService implements DisposableBean {
+public class EventBus implements DisposableBean {
 
     private final Sinks.Many<Event<? extends Output>> outputSink = Sinks.many().multicast().onBackpressureBuffer();
     private final Flux<Event<? extends Output>> outputEventStream = outputSink.asFlux().share();
@@ -21,7 +21,7 @@ public class EventService implements DisposableBean {
     private final ObjectReader eventReader;
     private final ObjectWriter eventWriter;
 
-    public EventService(ApplicationContext context) {
+    public EventBus(ApplicationContext context) {
         this.eventReader = Constants.OBJECT_MAPPER.readerFor(Event.class);
         this.eventWriter = Constants.OBJECT_MAPPER.writerFor(Event.class);
     }

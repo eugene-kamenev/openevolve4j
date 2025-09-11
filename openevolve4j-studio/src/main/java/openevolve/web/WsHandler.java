@@ -8,7 +8,7 @@ import org.springframework.web.reactive.socket.WebSocketSession;
 import openevolve.events.Event;
 import openevolve.events.Event.Input;
 import openevolve.service.ConfigService;
-import openevolve.service.EventService;
+import openevolve.service.EventBus;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -17,11 +17,11 @@ public class WsHandler implements WebSocketHandler {
 
 	private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(WsHandler.class);
 
-	private final EventService eventService;
+	private final EventBus eventService;
 	private final ConfigService configService;
 	private final ApplicationContext context;
 
-	public WsHandler(EventService eventService, ConfigService configService, ApplicationContext context) {
+	public WsHandler(EventBus eventService, ConfigService configService, ApplicationContext context) {
 		this.eventService = eventService;
 		this.configService = configService;
 		this.context = context;

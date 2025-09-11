@@ -7,13 +7,13 @@ import openevolve.mapelites.MAPElites.Cell;
 import openevolve.mapelites.Repository.Island;
 import openevolve.mapelites.Repository.Solution;
 import openevolve.mapelites.listener.MAPElitesListener;
-import openevolve.service.EventService;
+import openevolve.service.EventBus;
 
 public class EventListener implements MAPElitesListener<EvolveSolution> {
-	private final EventService eventService;
+	private final EventBus eventService;
 	private final String taskId;
 
-	public EventListener(EventService eventService, String taskId) {
+	public EventListener(EventBus eventService, String taskId) {
 		this.eventService = eventService;
 		this.taskId = taskId;
 	}

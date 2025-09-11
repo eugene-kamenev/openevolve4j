@@ -19,9 +19,9 @@ public class OpenEvolveService {
     private final Map<String, Disposable> runningTasks = new ConcurrentHashMap<>();
     private final Map<String, MAPElites<EvolveSolution>> mapElites = new ConcurrentHashMap<>();
 
-    private final EventService eventService;
+    private final EventBus eventService;
 
-    public OpenEvolveService(EventService eventService) {
+    public OpenEvolveService(EventBus eventService) {
         this.eventService = eventService;
     }
 
@@ -59,12 +59,22 @@ public class OpenEvolveService {
     }
 
     // Get status of a task
-    public Mono<String> getStatus(String taskId) {
+    public String getStatus(String taskId) {
         if (runningTasks.containsKey(taskId) && !runningTasks.get(taskId).isDisposed()) {
-            return Mono.just("RUNNING");
+            return "RUNNING";
         }
-        return Mono.just("NOT_RUNNING");
+        return "NOT_RUNNING";
     }
 
-
+    public Map<String, String> getStatuses() {
+        Map<String, String> statuses = new ConcurrentHashMap<>();
+        for (String taskId : mapElites.keySet()) {
+            if (runningTasks.containsKey(taskId) && !runningTasks.get(taskId).isDisposed()) {
+                statuses.put(taskId, "RUNNING");
+            } else {
+                statuses.put(taskId, "NOT_RUNNING");
+            }
+        }
+        return statuses;
+    }
 }
