@@ -1,11 +1,14 @@
 package openevolve.events;
 
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.springframework.context.ApplicationContext;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import openevolve.EvolveSolution;
 import openevolve.OpenEvolveConfig;
+import openevolve.mapelites.Repository.Solution;
 import openevolve.service.CommandService;
 import openevolve.service.ConfigService;
 import openevolve.service.OpenEvolveService;
@@ -27,6 +30,27 @@ public record Event<T extends Event.Payload>(String id, T payload) {
 	public record ConfigDeleted(String id) implements Output {
 	}
 	public record Connected(Map<String, OpenEvolveConfig> existing, Map<String, String> statuses) implements Output {
+	}
+
+	public record Solutions(String id, List<Solution<EvolveSolution>> solutions) implements Output {
+	}
+
+	public static class GetSolutions extends Input<Solutions> {
+		private String id;
+
+		@Override
+		public Mono<Solutions> get() {
+			return getBean(ConfigService.class)
+				.map(s -> new Solutions(id, s.getSolutions(id)));
+		}
+
+		public String getId() {
+			return id;
+		}
+
+		public void setId(String id) {
+			this.id = id;
+		}
 	}
 
 	// Input commands
@@ -159,7 +183,9 @@ public record Event<T extends Event.Payload>(String id, T payload) {
 		@JsonSubTypes.Type(value = Event.Connected.class, name = "CONNECTED"),
 		@JsonSubTypes.Type(value = Event.CreateConfig.class, name = "CONFIG_CREATE"),
 		@JsonSubTypes.Type(value = Event.UpdateConfig.class, name = "CONFIG_UPDATE"),
-		@JsonSubTypes.Type(value = Event.DeleteConfig.class, name = "CONFIG_DELETE")
+		@JsonSubTypes.Type(value = Event.DeleteConfig.class, name = "CONFIG_DELETE"),
+		@JsonSubTypes.Type(value = Event.GetSolutions.class, name = "GET_SOLUTIONS"),
+		@JsonSubTypes.Type(value = Event.Solutions.class, name = "SOLUTIONS"),
 	})
 	@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "type")
 	public static interface Payload {
