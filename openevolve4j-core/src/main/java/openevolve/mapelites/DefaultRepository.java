@@ -147,6 +147,7 @@ public class DefaultRepository<T> implements Repository<T> {
 		solutionsById.put(solution.id(), solution);
 		solutions.add(solution);
 		islands.get(solution.islandId()).archive().add(solution.id());
+		Listener.callAll(listeners, l -> l.onSolutionAdded(solution));
 		if (bestSolution == null || dominates(solution, bestSolution)) {
 			bestSolution = solution;
 		}

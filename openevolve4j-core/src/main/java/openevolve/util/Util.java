@@ -31,11 +31,11 @@ public class Util {
 		Objects.requireNonNull(object);
 		Objects.requireNonNull(mapper);
 		Objects.requireNonNull(filePath);
-		var writer = mapper.writerWithDefaultPrettyPrinter();
+		var writer = mapper.writer();
 		try (var outputStream = Files.newOutputStream(filePath,
 				Files.exists(filePath) ? StandardOpenOption.APPEND
 						: StandardOpenOption.CREATE)) {
-			writer.writeValue(outputStream, object);
+			outputStream.write(writer.writeValueAsString(object).getBytes());
 			outputStream.write('\n');
 		} catch (IOException e) {
 			throw new RuntimeException("Failed to write object to " + filePath, e);
@@ -55,7 +55,7 @@ public class Util {
 				try {
 					output.add(mapper.readValue(line, type));
 				} catch (JsonProcessingException e) {
-					// ignore
+					System.err.println("Failed to parse line: " + line);
 				}
 			});
 		} catch (IOException t) {
