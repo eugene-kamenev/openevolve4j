@@ -1,14 +1,18 @@
 package openevolve.service;
 
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
 import openevolve.Constants;
 import openevolve.EvolveSolution;
 import openevolve.OpenEvolve;
 import openevolve.OpenEvolveConfig;
 import openevolve.events.EventListener;
 import openevolve.mapelites.MAPElites;
+import openevolve.mapelites.Repository.Solution;
 import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -20,13 +24,15 @@ public class OpenEvolveService {
     private final Map<String, MAPElites<EvolveSolution>> mapElites = new ConcurrentHashMap<>();
 
     private final EventBus eventService;
+    private final RestClient.Builder restBuilder;
 
-    public OpenEvolveService(EventBus eventService) {
+    public OpenEvolveService(EventBus eventService, RestClient.Builder restBuilder) {
         this.eventService = eventService;
+        this.restBuilder = restBuilder;
     }
 
-    public Mono<Void> create(String id, OpenEvolveConfig config) {
-        var newMapElites = OpenEvolve.create(config, Constants.OBJECT_MAPPER);
+    public Mono<Void> create(String id, OpenEvolveConfig config, boolean restart, List<EvolveSolution> initialSolutions, Map<UUID, Solution<EvolveSolution>> allSolutions) {
+        var newMapElites = OpenEvolve.create(config, Constants.OBJECT_MAPPER, restart, initialSolutions, allSolutions, restBuilder);
         newMapElites.addListener(new EventListener(eventService, id));
         mapElites.put(id, newMapElites);
         return Mono.fromRunnable(() -> newMapElites.run(config.mapelites().numIterations()))
