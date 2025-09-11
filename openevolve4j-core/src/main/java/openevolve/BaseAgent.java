@@ -24,7 +24,7 @@ public abstract class BaseAgent {
 		this.random = random;
 	}
 
-	public EvolveSolution newSolution(EvolveStep step, String llmResponse) {
+	public EvolveSolution newSolution(EvolveStep step, List<Map<String, String>> llmRequest, String llmResponse) {
 		String changes = null;
 		String newSolution = null;
 		var parent = step.parent();
@@ -38,6 +38,10 @@ public abstract class BaseAgent {
 				changes = CodeParsingUtils.formatDiffSummary(diffs);
 			}
 		}
+		Map<String, Object> metadata = Map.of(
+			"llmRequest", llmRequest,
+			"llmResponse", llmResponse
+		);
 		if (newSolution != null) {
 			var newTarget = PathStructure.applyChanges(newSolution, parent.solution().files());
 			var evolvedSolution = new EvolveSolution(
@@ -47,6 +51,7 @@ public abstract class BaseAgent {
 				parent.solution().language(),
 				changes,
 				parent.fitness(),
+				metadata,
 				parent.solution().fullRewrite()
 			);
 			return evolvedSolution;

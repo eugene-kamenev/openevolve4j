@@ -61,7 +61,11 @@ public class OpenEvolveAgent extends BaseAgent implements Function<EvolveStep, E
 			}
 			count++;
 		}
-		return newSolution(step, response);
+		var llmRequest = List.of(
+			Map.of("system", systemPrompt.getText()),
+			Map.of("user", userPrompt.getText())
+		);
+		return newSolution(step, llmRequest, response);
 	}
 
 	private String renderSolution(Solution<EvolveSolution> solution, String name) {

@@ -231,7 +231,7 @@ public class DefaultRepositoryTest {
 		assertNotNull(snapshot);
 		
 		// Snapshot should contain repository state
-		assertEquals(2, snapshot.solutionsById().size());
+		assertEquals(2, snapshot.solutions().size());
 		assertEquals(2, snapshot.islands().size());
 	}
 
@@ -247,7 +247,7 @@ public class DefaultRepositoryTest {
 		repo1.save(s2);
 
 		var snapshot = repo1.snapshot();
-		repo2.restore(snapshot);
+		repo2.restore(snapshot, Map.of(s1.id(), s1, s2.id(), s2));
 
 		assertEquals(repo1.count(), repo2.count());
 		assertEquals(repo1.findAll().size(), repo2.findAll().size());

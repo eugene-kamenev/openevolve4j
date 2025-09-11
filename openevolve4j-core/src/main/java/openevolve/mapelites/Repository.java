@@ -39,18 +39,16 @@ public interface Repository<T> {
 	List<Island> findAllIslands();
 
 	// Snapshot/restore support
-    RepositoryState<T> snapshot();
-    void restore(RepositoryState<T> state);
+    RepositoryState snapshot();
+    void restore(RepositoryState state, Map<UUID, Solution<T>> allSolutions);
 
     // Portable DTOs for checkpointing
-    public record RepositoryState<T>(
-        Map<UUID, Solution<T>> solutionsById,
+    public record RepositoryState(
+        List<UUID> solutions,
         Set<UUID> archive,
-        List<IslandState> islands,
+        List<List<UUID>> islands,
         Integer currentIslandId
     ) {}
-
-    public record IslandState(int id, Set<UUID> archive) {}
 
 	public record Solution<T>(UUID id, T solution, UUID migratedFrom, Map<String, Object> fitness,
 			int iteration, int islandId, int[] cell, String cellId) {

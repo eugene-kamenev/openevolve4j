@@ -15,6 +15,7 @@ public record EvolveSolution(
 		String language,
 		String changes,
 		Map<String, Object> parentMetrics,
+		Map<String, Object> metadata,
 		boolean fullRewrite) {
 
 	@Override

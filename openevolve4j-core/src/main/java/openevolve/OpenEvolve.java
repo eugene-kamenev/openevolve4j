@@ -7,6 +7,7 @@ import java.util.function.Supplier;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import openevolve.mapelites.DefaultRepository;
 import openevolve.mapelites.listener.RepositoryListener.SolutionWriter;
+import openevolve.mapelites.listener.MAPElitesListener.StateWriter;
 import openevolve.mapelites.MAPElites;
 import openevolve.mapelites.Migration;
 import openevolve.mapelites.FeatureScaler.ScaleMethod;
@@ -21,6 +22,7 @@ public class OpenEvolve {
 		var bins = config.mapelites().bins();
 		var structure = SolutionUtil.initPath(config.solution().filePattern(), null, config.solution().path());
 		var solutionsJson = config.solution().path().getParent().resolve("solutions.jsonl");
+		var stateJson = config.solution().path().getParent().resolve("state.json");
 		var repository =
 				new DefaultRepository<>(config.comparator(), config.repository().populationSize(),
 						config.repository().archiveSize(), config.repository().islands());
@@ -42,7 +44,7 @@ public class OpenEvolve {
 		var complexityFunc = new ComplexityFunction();
 		Supplier<List<EvolveSolution>> initial = () -> List
 				.of(new EvolveSolution(null, Instant.now(), structure.target(),
-						config.solution().language(), null, Map.of(), config.solution().fullRewrite()));
+						config.solution().language(), null, Map.of(), Map.of(), config.solution().fullRewrite()));
 		var mapelites = new MAPElites<>(repository, migration, evaluator, evolveFunction, initial,
 				selection, config.stopCondition(), ScaleMethod.MIN_MAX,
 				config.mapelites().dimensions(), bins) {
@@ -59,7 +61,7 @@ public class OpenEvolve {
 				return super.getFeatureValue(feature, evolved, fitness);
 			}
 		};
-		mapelites.addListener(new OpenEvolveCheckpointListener(config.solution().path().getParent().resolve("ckpt"), 10, mapper, repository, null));
+		mapelites.addListener(new StateWriter<>(stateJson, mapper));
 		return mapelites;
 	}
 }

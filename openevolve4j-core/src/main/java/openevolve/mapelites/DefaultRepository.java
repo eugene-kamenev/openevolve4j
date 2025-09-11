@@ -155,37 +155,44 @@ public class DefaultRepository<T> implements Repository<T> {
 	}
 
 	@Override
-    public RepositoryState<T> snapshot() {
-        var solutionsCopy = new HashMap<UUID, Solution<T>>(solutionsById);
+    public RepositoryState snapshot() {
+        var solutionsCopy = new ArrayList<>(solutionsById.keySet());
         var archiveCopy = new HashSet<UUID>(archive);
         var islandsCopy = islands.stream()
-            .map(i -> new Repository.IslandState(i.id(), new HashSet<>(i.archive())))
+            .map(i -> (List<UUID>) new ArrayList<>(i.archive()))
             .collect(Collectors.toList());
         Integer currentId = currentIsland != null ? currentIsland.id() : null;
-        return new Repository.RepositoryState<>(solutionsCopy, archiveCopy, islandsCopy, currentId);
+		return new RepositoryState(solutionsCopy, archiveCopy, islandsCopy, currentId);
     }
 
     @Override
-    public void restore(RepositoryState<T> state) {
+    public void restore(RepositoryState state, Map<UUID, Solution<T>> allSolutions) {
         Objects.requireNonNull(state, "repository state must not be null");
-
+		if (allSolutions == null || allSolutions.isEmpty()) {
+			throw new IllegalArgumentException("allSolutions must not be null or empty");
+		}
         // Clear all
         solutionsById.clear();
         archive.clear();
         islands.clear();
         solutions.clear();
 
+		for (var id : state.solutions()) {
+			var solution = allSolutions.get(id);
+			if (solution != null) {
+				solutionsById.put(id, solution);
+				solutions.add(solution);
+			}
+		}
+
         // Restore solutions/sets
-        solutionsById.putAll(state.solutionsById());
         archive.addAll(state.archive());
 
-        // Rebuild sorted set
-        solutions.addAll(state.solutionsById().values());
-
         // Rebuild islands
+		int islandId = 0;
         for (var is : state.islands()) {
-            var island = new Island(is.id());
-            island.archive().addAll(is.archive());
+            var island = new Island(islandId++);
+            island.archive().addAll(is);
             islands.add(island);
         }
 

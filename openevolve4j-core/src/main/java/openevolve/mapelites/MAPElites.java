@@ -12,6 +12,7 @@ import openevolve.mapelites.listener.Listener;
 import openevolve.Constants;
 import openevolve.mapelites.FeatureScaler.ScaleMethod;
 import openevolve.mapelites.Repository.Island;
+import openevolve.mapelites.Repository.RepositoryState;
 import openevolve.mapelites.Repository.Solution;
 
 /**
@@ -122,8 +123,16 @@ public class MAPElites<T> {
 		}
 	}
 
-	public Snapshot<T> snapshot() {
-		return new Snapshot<>(currentIteration, repository.snapshot(), new HashMap<>(grid), new HashMap<>(featureStats));
+	public Map<String, Cell> getGrid() {
+		return Collections.unmodifiableMap(grid);
+	}
+
+	public Map<String, FeatureScaler> getFeatureStats() {
+		return Collections.unmodifiableMap(featureStats);
+	}
+
+	public RepositoryState getRepositoryState() {
+		return repository.snapshot();
 	}
 
 	public int[] calculateFeatureCoords(T evolved, Map<String, Object> fitness) {
@@ -223,9 +232,5 @@ public class MAPElites<T> {
 	}
 
 	public record Cell(String key, int trials, double curiosity, int improveIter, UUID solutionId) {
-	}
-
-	public record Snapshot<T>(int iteration, Repository.RepositoryState<T> repository, Map<String, Cell> grid, Map<String, FeatureScaler> featureStats) {
-
 	}
 }

@@ -1,8 +1,13 @@
 package openevolve.mapelites.listener;
 
+import java.nio.file.Path;
+import java.util.Map;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import openevolve.mapelites.FeatureScaler;
 import openevolve.mapelites.MAPElites;
 import openevolve.mapelites.MAPElites.Cell;
 import openevolve.mapelites.Repository.Island;
+import openevolve.mapelites.Repository.RepositoryState;
 import openevolve.mapelites.Repository.Solution;
 
 /**
@@ -87,5 +92,29 @@ public interface MAPElitesListener<T> extends Listener {
      * @param iteration current iteration
      */
     default void onCellRejected(Solution<T> candidateSolution, Solution<T> existingSolution, Cell cell, int iteration) {
+    }
+
+    public static class StateWriter<T> implements MAPElitesListener<T> {
+        private final Path statePath;
+        private final ObjectMapper mapper;
+
+        public StateWriter(Path statePath, ObjectMapper mapper) {
+            this.statePath = statePath;
+            this.mapper = mapper;
+        }
+
+        @Override
+        public void onAfterIteration(Island island, int iteration, MAPElites<T> mapElites) {
+            State<T> state = new State<>(iteration, mapElites.getRepositoryState(), mapElites.getGrid(), mapElites.getFeatureStats());
+            try {
+                mapper.writeValue(statePath.toFile(), state);
+            } catch (Exception e) {
+                System.err.println("Warning: Failed to write MAP-Elites state to " + statePath);
+                e.printStackTrace();
+            }
+        }
+
+        public record State<T>(int iteration, RepositoryState repository, Map<String, Cell> grid, Map<String, FeatureScaler> featureStats) {
+        }
     }
 }
