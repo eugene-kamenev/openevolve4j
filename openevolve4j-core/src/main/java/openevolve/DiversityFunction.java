@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 import org.apache.commons.text.similarity.LevenshteinDistance;
 import openevolve.mapelites.Repository;
 import openevolve.mapelites.Repository.Solution;
+import openevolve.util.SolutionUtil;
 
 /**
  * Calculates diversity scores for evolution solutions using configurable distance functions.
@@ -66,7 +67,7 @@ public class DiversityFunction implements ToDoubleFunction<EvolveSolution> {
 
 	@Override
 	public double applyAsDouble(EvolveSolution t) {
-		var content = t.content();
+		var content = SolutionUtil.toContent(t.files());
 		if (content == null || content.isEmpty()) {
 			return 0.0;
 		}
@@ -97,7 +98,7 @@ public class DiversityFunction implements ToDoubleFunction<EvolveSolution> {
 	private void updateDiversitySet() {
 		if (this.diversitySet.size() < this.diversitySetSize) {
 			if (repository.count() <= this.diversitySetSize) {
-				repository.findAll().stream().map(s -> s.solution().content())
+				repository.findAll().stream().map(s -> SolutionUtil.toContent(s.solution().files()))
 						.forEach(this.diversitySet::add);
 			} else {
 				// select solutions with maximum diversity
@@ -111,8 +112,9 @@ public class DiversityFunction implements ToDoubleFunction<EvolveSolution> {
 					for (int i = 0; i < remaining.size(); i++) {
 						double minDiversity = Double.POSITIVE_INFINITY;
 						for (var s : selected) {
-							double diversity = diversityFunc.applyAsDouble(
-									remaining.get(i).solution().content(), s.solution().content());
+							var content2 = SolutionUtil.toContent(remaining.get(i).solution().files());
+							var content1 = SolutionUtil.toContent(s.solution().files());
+							double diversity = diversityFunc.applyAsDouble(content2, content1);
 							minDiversity = Math.min(minDiversity, diversity);
 						}
 						if (minDiversity > maxDiversity) {
@@ -124,7 +126,7 @@ public class DiversityFunction implements ToDoubleFunction<EvolveSolution> {
 						selected.add(remaining.remove(bestIdx));
 					}
 				}
-				selected.stream().map(s -> s.solution().content()).forEach(this.diversitySet::add);
+				selected.stream().map(s -> SolutionUtil.toContent(s.solution().files())).forEach(this.diversitySet::add);
 			}
 		}
 	}

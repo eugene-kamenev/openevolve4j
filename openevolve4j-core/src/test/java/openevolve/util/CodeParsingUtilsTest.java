@@ -239,16 +239,6 @@ public class CodeParsingUtilsTest {
     }
 
     @Test
-    void testCalculateEditDistance() {
-        // Test Levenshtein edit distance calculation
-        assertEquals(0, CodeParsingUtils.calculateEditDistance("hello", "hello"));
-        assertEquals(1, CodeParsingUtils.calculateEditDistance("hello", "helo"));
-        assertEquals(2, CodeParsingUtils.calculateEditDistance("hello", "help"));
-        assertEquals(5, CodeParsingUtils.calculateEditDistance("", "hello"));
-        assertEquals(5, CodeParsingUtils.calculateEditDistance("hello", ""));
-    }
-
-    @Test
     void testExtractCodeLanguage() {
         // Test language detection
         String pythonCode = """

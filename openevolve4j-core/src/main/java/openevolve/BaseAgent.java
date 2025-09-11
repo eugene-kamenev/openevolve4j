@@ -2,13 +2,15 @@ package openevolve;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import openevolve.util.CodeParsingUtils;
+import openevolve.util.SolutionUtil;
+import openevolve.util.SolutionUtil.PathStructure;
 
 public abstract class BaseAgent {
 
@@ -25,29 +27,27 @@ public abstract class BaseAgent {
 	public EvolveSolution newSolution(EvolveStep step, String llmResponse) {
 		String changes = null;
 		String newSolution = null;
-		var solution = step.parent();
-		if (solution.solution().fullRewrite()) {
-			newSolution = CodeParsingUtils.parseFullRewrite(llmResponse, solution.solution().language()).orElse(null);
+		var parent = step.parent();
+		if (parent.solution().fullRewrite()) {
+			newSolution = CodeParsingUtils.parseFullRewrite(llmResponse, parent.solution().language()).orElse(null);
 			changes = "Full rewrite";
 		} else if (llmResponse != null && !llmResponse.isBlank()) {
 			var diffs = CodeParsingUtils.extractDiffs(llmResponse);
 			if (!diffs.isEmpty()) {
-				newSolution = CodeParsingUtils.applyDiff(solution.solution().content(), llmResponse);
+				newSolution = CodeParsingUtils.applyDiff(SolutionUtil.toContent(parent.solution().files()), llmResponse);
 				changes = CodeParsingUtils.formatDiffSummary(diffs);
 			}
 		}
 		if (newSolution != null) {
-			var randString = RandomStringUtils.secure().next(8, true, true);
-			var parentPath = solution.solution().path().getParent();
+			var newTarget = PathStructure.applyChanges(newSolution, parent.solution().files());
 			var evolvedSolution = new EvolveSolution(
-				solution.id(),
-				solution.solution().path(),
-				parentPath.resolve(randString),
-				newSolution,
-				solution.solution().language(),
+				parent.id(),
+				Instant.now(),
+				newTarget,
+				parent.solution().language(),
 				changes,
-				solution.fitness(),
-				solution.solution().fullRewrite()
+				parent.fitness(),
+				parent.solution().fullRewrite()
 			);
 			return evolvedSolution;
 		}

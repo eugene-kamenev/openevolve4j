@@ -1,11 +1,13 @@
 package openevolve.util;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -24,6 +26,43 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class Util {
+
+	public static final <T> void writeJSONL(T object, ObjectMapper mapper, Path filePath) {
+		Objects.requireNonNull(object);
+		Objects.requireNonNull(mapper);
+		Objects.requireNonNull(filePath);
+		var writer = mapper.writerWithDefaultPrettyPrinter();
+		try (var outputStream = Files.newOutputStream(filePath,
+				Files.exists(filePath) ? StandardOpenOption.APPEND
+						: StandardOpenOption.CREATE)) {
+			writer.writeValue(outputStream, object);
+			outputStream.write('\n');
+		} catch (IOException e) {
+			throw new RuntimeException("Failed to write object to " + filePath, e);
+		}
+	}
+
+	public static final <T> List<T> readJSONL(ObjectMapper mapper, Path filePath,
+			TypeReference<T> type) {
+		Objects.requireNonNull(mapper);
+		Objects.requireNonNull(filePath);
+		if (!Files.exists(filePath)) {
+			return List.of();
+		}
+		var output = new ArrayList<T>();
+		try {
+			Files.lines(filePath).forEach(line -> {
+				try {
+					output.add(mapper.readValue(line, type));
+				} catch (JsonProcessingException e) {
+					// ignore
+				}
+			});
+		} catch (IOException t) {
+			throw new UncheckedIOException("Failed to read objects from " + filePath, t);
+		}
+		return output;
+	}
 
 	public static final <T> void save(T object, ObjectMapper mapper, Path filePath,
 			boolean overwrite) {
@@ -103,10 +142,10 @@ public class Util {
 		try {
 			Files.walkFileTree(promptsPath, new SimpleFileVisitor<Path>() {
 				@Override
-				public FileVisitResult visitFile(Path file, java.nio.file.attribute.BasicFileAttributes attrs) {
+				public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
 					defaultKeys.entrySet().stream().forEach(entry -> {
 						if (entry.getValue().matcher(file.getFileName().toString()).find()) {
-							var templates = prompts.computeIfAbsent(entry.getKey(), k -> new ArrayList<>());
+							var templates = prompts.computeIfAbsent(entry.getKey(), _ -> new ArrayList<>());
 							templates.add(new PromptTemplate(new FileSystemResource(file.toAbsolutePath())));
 						}
 					});

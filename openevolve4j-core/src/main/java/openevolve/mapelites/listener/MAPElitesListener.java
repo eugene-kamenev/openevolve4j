@@ -9,7 +9,7 @@ import openevolve.mapelites.Repository.Solution;
  * Listener interface for tracking various events during MAP-Elites algorithm execution.
  * Provides hooks for monitoring, logging, and extending algorithm behavior.
  */
-public interface MAPElitesListener<T> {
+public interface MAPElitesListener<T> extends Listener {
 
     /**
      * Called when the algorithm starts (before initialization).

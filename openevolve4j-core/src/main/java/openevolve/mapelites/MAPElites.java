@@ -1,7 +1,6 @@
 package openevolve.mapelites;
 
 import java.util.*;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -9,6 +8,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import openevolve.mapelites.listener.MAPElitesListener;
+import openevolve.mapelites.listener.Listener;
 import openevolve.Constants;
 import openevolve.mapelites.FeatureScaler.ScaleMethod;
 import openevolve.mapelites.Repository.Island;
@@ -95,7 +95,7 @@ public class MAPElites<T> {
 	public void run(int iterations) {
 		if (!initialized) {
 			currentIteration = 1;
-			callListeners(listener -> listener.onAlgorithmStart(this));
+			Listener.callAll(listeners, listener -> listener.onAlgorithmStart(this));
 			var initial = initialSolutionGenerator.get();
 			for (int i = 0; i < initial.size(); i++) {
 				addSolution(initial.get(i), repository.findIslandById(i), 0);
@@ -110,11 +110,11 @@ public class MAPElites<T> {
 		for (; currentIteration <= iterations && !shouldStop(); currentIteration++) {
 			try {
 				var island = repository.nextIsland();
-				callListeners(
+				Listener.callAll(listeners,
 						listener -> listener.onBeforeIteration(island, currentIteration, this));
 				evolveIsland(island, currentIteration);
 				migration.migrateSolutions(island, currentIteration);
-				callListeners(
+				Listener.callAll(listeners,
 						listener -> listener.onAfterIteration(island, currentIteration, this));
 			} catch (Throwable t) {
 				LOG.error("Error occurred during MAP-Elites iteration", t);
@@ -151,14 +151,14 @@ public class MAPElites<T> {
 					cell != null ? cell.curiosity() : 0.0, newSolution.iteration(),
 					newSolution.id());
 			grid.put(coords, newCell);
-			callListeners(listener -> listener.onCellImproved(newSolution, current, newCell,
+			Listener.callAll(listeners, listener -> listener.onCellImproved(newSolution, current, newCell,
 					newSolution.iteration()));
 			return true;
 		} else if (cell != null) {
 			var updatedCell = new Cell(cell.key(), cell.trials() + 1, cell.curiosity(),
 					cell.improveIter(), cell.solutionId());
 			grid.put(coords, updatedCell);
-			callListeners(listener -> listener.onCellRejected(newSolution, current, updatedCell,
+			Listener.callAll(listeners, listener -> listener.onCellRejected(newSolution, current, updatedCell,
 					newSolution.iteration()));
 		}
 		return false;
@@ -200,13 +200,13 @@ public class MAPElites<T> {
 					island.id(), iteration);
 			return;
 		}
-		callListeners(listener -> listener.onSolutionSelection(selected, island, iteration));
+		Listener.callAll(listeners, listener -> listener.onSolutionSelection(selected, island, iteration));
 		var evolved = evolveOperator.apply(selected);
 		if (evolved == null) {
 			return;
 		}
 		var solution = addSolution(evolved, island, iteration);
-		callListeners(listener -> listener.onSolutionGenerated(solution, selected, iteration));
+		Listener.callAll(listeners, listener -> listener.onSolutionGenerated(solution, selected, iteration));
 	}
 
 	private Solution<T> addSolution(T evolved, Island island, int iteration) {
@@ -217,19 +217,9 @@ public class MAPElites<T> {
 		addToGrid(solution);
 		if (bestBefore == null || repository.best().id().equals(solution.id())) {
 			// best solution is the same solution now
-			callListeners(listener -> listener.onNewBestSolution(solution, bestBefore, iteration));
+			Listener.callAll(listeners, listener -> listener.onNewBestSolution(solution, bestBefore, iteration));
 		}
 		return solution;
-	}
-
-	private void callListeners(Consumer<MAPElitesListener<T>> action) {
-		listeners.forEach(listener -> {
-			try {
-				action.accept(listener);
-			} catch (Exception e) {
-				LOG.error("Error occurred while calling listener", e);
-			}
-		});
 	}
 
 	public record Cell(String key, int trials, double curiosity, int improveIter, UUID solutionId) {

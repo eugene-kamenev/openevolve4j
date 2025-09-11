@@ -12,9 +12,9 @@ import openevolve.mapelites.listener.MAPElitesLoggingListener;
 public class OpenEvolveTest {
 	
 	@Test
-	@Disabled
+	// @Disabled
 	void testLLM() {
-		var config = loadConfig("/openevolve/llm_prompt_eval/config.yml");
+		var config = loadConfig("/openevolve/trading/config.yml");
 		assertNotNull(config);
 		var openEvolve = OpenEvolve.create(config, Constants.OBJECT_MAPPER);
 		assertNotNull(openEvolve);

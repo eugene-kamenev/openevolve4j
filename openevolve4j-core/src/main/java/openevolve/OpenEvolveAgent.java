@@ -9,6 +9,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.chat.prompt.SystemPromptTemplate;
 import openevolve.mapelites.Repository.Solution;
+import openevolve.util.SolutionUtil;
 
 public class OpenEvolveAgent extends BaseAgent implements Function<EvolveStep, EvolveSolution> {
 
@@ -35,9 +36,10 @@ public class OpenEvolveAgent extends BaseAgent implements Function<EvolveStep, E
 		var solutionTmpl = renderSolution(parent, "Current Solution");
 		var parentsBuilder = new StringBuilder();
 		int i = 1;
-		List<Solution<EvolveSolution>> solutions =
-				Stream.of(step.topSolutions().stream(), step.inspirations().stream(),
-						step.previousSolutions().stream()).flatMap(Function.identity()).distinct().toList();
+		List<Solution<EvolveSolution>> solutions = Stream
+				.of(step.topSolutions().stream(), step.inspirations().stream(),
+						step.previousSolutions().stream())
+				.flatMap(Function.identity()).distinct().toList();
 		if (!solutions.isEmpty()) {
 			for (var p : solutions) {
 				parentsBuilder.append(renderSolution(p, "Parent Solution " + i)).append("\n---\n");
@@ -63,8 +65,9 @@ public class OpenEvolveAgent extends BaseAgent implements Function<EvolveStep, E
 	}
 
 	private String renderSolution(Solution<EvolveSolution> solution, String name) {
-		return getTemplate(Constants.SOLUTION).render(Map.of("code", solution.solution().content(),
-				"language", solution.solution().language(), "metrics",
-				metricsToString(solution.fitness()), "name", name));
+		return getTemplate(Constants.SOLUTION)
+				.render(Map.of("code", SolutionUtil.toContent(solution.solution().files()),
+						"language", solution.solution().language(), "metrics",
+						metricsToString(solution.fitness()), "name", name));
 	}
 }

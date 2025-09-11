@@ -9,9 +9,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import openevolve.util.BashExecutor;
+import openevolve.util.SolutionUtil;
 
 public class OpenEvolveEvaluator implements Function<EvolveSolution, Map<String, Object>> {
 
@@ -19,38 +21,47 @@ public class OpenEvolveEvaluator implements Function<EvolveSolution, Map<String,
 	private final Duration evalTimeout;
 	private final Collection<String> metrics;
 	private final ObjectMapper mapper;
+	private final Set<Path> links;
+	private final Path basePath;
 
-	public OpenEvolveEvaluator(Path runner, Collection<String> metrics, Duration timeoutConfig,
+	public OpenEvolveEvaluator(Path runner, Path basePath, Set<Path> links, Collection<String> metrics, Duration timeoutConfig,
 			ObjectMapper mapper) {
 		Objects.requireNonNull(mapper);
+		Objects.requireNonNull(basePath);
+		this.links = links != null ? Set.copyOf(links) : Set.of();
 		this.runner = runner;
 		this.evalTimeout = timeoutConfig;
 		this.mapper = mapper;
 		this.metrics = metrics;
+		this.basePath = basePath;
 	}
 
 	@Override
 	public Map<String, Object> apply(EvolveSolution solution) {
 		Objects.requireNonNull(solution);
 		try {
-			if (solution.content() == null || solution.content().isEmpty()) {
-				throw new IllegalArgumentException("Solution content must not be null or empty");
+			if (solution.files() == null || solution.files().isEmpty()) {
+				throw new IllegalArgumentException("Solution files must not be null or empty");
 			}
-			Files.walkFileTree(solution.parentPath(),
-					Constants.COPY_VISITOR.apply(solution.parentPath(), solution.path()));
-			var code = Code.fromContent(solution.content(), solution.path());
-			for (SourceFile sourceFile : code.files()) {
-				var sourcePath = sourceFile.path();
+			var newBasePath = SolutionUtil.newPath();
+			for (var link : links) {
+				var target = basePath.resolve(link);
+				var linkPath = newBasePath.resolve(link);
+				Files.createDirectories(linkPath.getParent());
+				Files.createSymbolicLink(linkPath, target);
+			}
+			for (var sourceFile : solution.files().entrySet()) {
+				var sourcePath = newBasePath.resolve(sourceFile.getKey());
 				try {
 					Files.createDirectories(sourcePath.getParent());
-					Files.writeString(sourcePath, sourceFile.sourceCode(),
+					Files.writeString(sourcePath, sourceFile.getValue(),
 							StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 				} catch (Exception e) {
-					throw new RuntimeException("Failed to write source file: " + sourceFile.path(),
+					throw new RuntimeException("Failed to write source file: " + sourceFile.getKey(),
 							e);
 				}
 			}
-			return BashExecutor.runScript(runner, List.of(), evalTimeout, solution.path(), Map.of(),
+			return BashExecutor.runScript(runner, List.of(), evalTimeout, newBasePath, Map.of(),
 					StandardCharsets.UTF_8).extractMetrics(mapper, metrics);
 		} catch (Throwable t) {
 			var errorMessage = "Failed to evaluate bash script: " + runner;

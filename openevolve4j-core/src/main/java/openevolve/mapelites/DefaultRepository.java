@@ -12,12 +12,15 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import openevolve.mapelites.listener.Listener;
+import openevolve.mapelites.listener.RepositoryListener;
 
 public class DefaultRepository<T> implements Repository<T> {
 
 	private final Map<UUID, Solution<T>> solutionsById = new HashMap<>();
 	private final Set<UUID> archive = new HashSet<>();
 	private final List<Island> islands = new ArrayList<>();
+	private final List<RepositoryListener<T>> listeners = new ArrayList<>();
 	private final SortedSet<Solution<T>> solutions;
 	private final Comparator<Solution<T>> comparator;
 	private final int populationSize;
@@ -43,6 +46,12 @@ public class DefaultRepository<T> implements Repository<T> {
 		this.archiveSize = archiveSize;
 		for (int i = 0; i < numIslands; i++) {
 			islands.add(new Island(i));
+		}
+	}
+
+	public void addListener(RepositoryListener<T> listener) {
+		if (listener != null) {
+			listeners.add(listener);
 		}
 	}
 
@@ -107,6 +116,7 @@ public class DefaultRepository<T> implements Repository<T> {
 	public void delete(UUID id) {
 		Solution<T> solution = solutionsById.remove(id);
 		if (solution != null) {
+			Listener.callAll(listeners, l -> l.onSolutionRemoved(solution));
 			solutions.remove(solution);
 		}
 		for (var island : islands) {

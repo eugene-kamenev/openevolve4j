@@ -25,12 +25,12 @@ public class OpenEvolveCheckpointListener extends CheckpointListener<EvolveSolut
 		if (shouldCheckpoint(iteration)) {
 			var checkpoint = checkpointDir.resolve(String.valueOf(iteration));
 			try {
-				Files.createDirectories(checkpoint);
+				/* Files.createDirectories(checkpoint);
 				var solutions = repository.findAll();
 				for (var solution : solutions) {
 					var solutionPath = checkpoint.resolve(String.valueOf(solution.id()));
 					Files.walkFileTree(solution.solution().path(), Constants.COPY_VISITOR.apply(solution.solution().path(), solutionPath));
-				}
+				} */
 			} catch (Throwable t) {
 				System.err.println("Warning: Failed to save checkpoint at iteration " + iteration);
 				t.printStackTrace();
