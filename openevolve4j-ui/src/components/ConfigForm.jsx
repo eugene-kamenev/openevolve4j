@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Save, X, Info, Eye, Code, Settings, GitBranch, Database, Map, Cpu } from 'lucide-react';
-import { OpenEvolveConfig } from '../OpenEvolveConfig';
+import { OpenEvolveConfig } from '../Entity';
 import YamlPreview from './YamlPreview';
 import FormGroup from './forms/FormGroup';
 import ArrayInput from './forms/ArrayInput';

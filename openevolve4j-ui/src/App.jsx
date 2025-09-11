@@ -3,9 +3,8 @@ import { Settings, Plus, RefreshCw, CloudUpload, FolderOpen, Database, Activity,
 import ConfigForm from './components/ConfigForm';
 import SidebarConfigList from './components/SidebarConfigList';
 import SolutionsView from './components/SolutionsView';
-import CheckpointsView from './components/CheckpointsView';
 import WebSocketService from './services/WebSocketService';
-import { OpenEvolveConfig } from './OpenEvolveConfig';
+import { OpenEvolveConfig } from './Entity';
 import './design-system.css';
 import './App.css';
 
@@ -15,6 +14,7 @@ export const ConfigContext = createContext();
 function App() {
   const ws = useRef(WebSocketService.getInstance());
   const [configs, setConfigs] = useState([]);
+  const [solutions, setSolutions] = useState({}); // Map of configId -> solutions array
   const [wsStatus, setWsStatus] = useState('connecting'); // connecting | open | error
   const [selectedConfig, setSelectedConfig] = useState(null);
   const [viewMode, setViewMode] = useState('welcome'); // 'welcome', 'edit', 'create'
@@ -127,7 +127,7 @@ function App() {
           config: configData,
           modified: new Date().toISOString()
         };
-        setConfigs(prev => prev.map(c => 
+        setConfigs(prev => prev.map(c =>
           c.id === selectedConfig.id ? updatedConfig : c
         ));
         setSelectedConfig(updatedConfig);
@@ -204,7 +204,7 @@ function App() {
   };
 
   return (
-    <ConfigContext.Provider value={{ configs, setConfigs, sendWsMessage, sendWsRequest }}>
+    <ConfigContext.Provider value={{ configs, setConfigs, solutions, setSolutions, sendWsMessage, sendWsRequest }}>
       <div className="oe-app-layout">
         {/* Sidebar */}
         <aside className="oe-sidebar">
@@ -307,9 +307,6 @@ function App() {
                   <SolutionsView config={selectedConfig} />
                 )}
                 
-                {activeTab === 'checkpoints' && viewMode === 'edit' && (
-                  <CheckpointsView config={selectedConfig} />
-                )}
               </>
             )}
           </div>

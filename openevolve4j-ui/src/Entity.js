@@ -1,4 +1,4 @@
-export class Solution {
+export class SolutionConfig {
     constructor(params = {}) {
         this.workspace = params.workspace || "workspace";
         this.path = params.path || "solution";
@@ -57,12 +57,37 @@ export class LLM {
 export class OpenEvolveConfig {
     constructor(params = {}) {
         this.promptPath = params.promptPath;
-        this.solution = params.solution ? new Solution(params.solution) : new Solution();
+        this.solution = params.solution ? new SolutionConfig(params.solution) : new SolutionConfig();
         this.selection = params.selection ? new Selection(params.selection) : new Selection();
         this.migration = params.migration ? new Migration(params.migration) : new Migration();
         this.repository = params.repository ? new Repository(params.repository) : new Repository();
         this.mapelites = params.mapelites ? new MAPElites(params.mapelites) : new MAPElites();
         this.llm = params.llm ? new LLM(params.llm) : new LLM();
         this.metrics = params.metrics || {};
+    }
+}
+
+export class Solution {
+    constructor(params = {}) {
+        this.id = params.id;
+        this.solution = new EvolveSolution(params.solution);
+        this.migratedFrom = params.migratedFrom;
+        this.fitness = params.fitness;
+        this.iteration = params.iteration;
+        this.islandId = params.islandId;
+        this.cell = params.cell;
+        this.cellId = params.cellId;
+    }
+}
+
+export class EvolveSolution {
+    constructor(params = {}) {
+        this.parentId = params.parentId;
+        this.dateCreated = params.dateCreated;
+        this.files = params.files || {};
+        this.language = params.language;
+        this.changes = params.changes;
+        this.parentMetrics = params.parentMetrics || {};
+        this.fullRewrite = params.fullRewrite || false;
     }
 }

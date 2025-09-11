@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react';
 import { Plus, Upload, Search, Edit, Trash2, Copy, Download } from 'lucide-react';
 import { ConfigContext } from '../App';
 import yaml from 'js-yaml';
-import { OpenEvolveConfig } from '../OpenEvolveConfig';
+import { OpenEvolveConfig } from '../Entity';
 
 const SidebarConfigList = ({ selectedConfigId, onSelectConfig, onCreateNew }) => {
   const { configs, setConfigs, sendWsRequest } = useContext(ConfigContext);
@@ -140,15 +140,6 @@ const SidebarConfigList = ({ selectedConfigId, onSelectConfig, onCreateNew }) =>
     event.target.value = '';
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
   return (
     <div className="sidebar-config-list">
       {/* Header with actions */}
@@ -214,31 +205,6 @@ const SidebarConfigList = ({ selectedConfigId, onSelectConfig, onCreateNew }) =>
             >
               <div className="config-item-header">
                 <h4 className="config-name">{config.name}</h4>
-                <div className="config-item-actions">
-                  <button
-                    className="action-btn"
-                    onClick={(e) => handleDuplicate(config, e)}
-                    title="Duplicate"
-                    disabled={loading}
-                  >
-                    <Copy size={12} />
-                  </button>
-                  <button
-                    className="action-btn"
-                    onClick={(e) => handleExport(config, e)}
-                    title="Export"
-                  >
-                    <Download size={12} />
-                  </button>
-                  <button
-                    className="action-btn delete"
-                    onClick={(e) => handleDelete(config.id, e)}
-                    title="Delete"
-                    disabled={loading}
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
               </div>
               <div className="config-item-meta">
                 <div className="config-info">
@@ -246,6 +212,31 @@ const SidebarConfigList = ({ selectedConfigId, onSelectConfig, onCreateNew }) =>
                     {config.config.solution?.language || 'unknown'}
                   </span>
                 </div>
+              </div>
+              <div className="config-item-actions">
+                <button
+                  className="action-btn"
+                  onClick={(e) => handleDuplicate(config, e)}
+                  title="Duplicate"
+                  disabled={loading}
+                >
+                  <Copy size={12} />
+                </button>
+                <button
+                  className="action-btn"
+                  onClick={(e) => handleExport(config, e)}
+                  title="Export"
+                >
+                  <Download size={12} />
+                </button>
+                <button
+                  className="action-btn delete"
+                  onClick={(e) => handleDelete(config.id, e)}
+                  title="Delete"
+                  disabled={loading}
+                >
+                  <Trash2 size={12} />
+                </button>
               </div>
             </div>
           ))
