@@ -70,12 +70,16 @@ public final class Constants {
 					.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
 	public static final ObjectMapper OBJECT_MAPPER =
-			JsonMapper.builder().findAndAddModules().enable(JsonParser.Feature.ALLOW_COMMENTS)
+			JsonMapper.builder().findAndAddModules()
+					.addModule(new JavaTimeModule())
+					.enable(JsonParser.Feature.ALLOW_COMMENTS)
 					.enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS)
 					.enable(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES)
 					.enable(JsonReadFeature.ALLOW_MISSING_VALUES)
 					.enable(JsonReadFeature.ALLOW_NON_NUMERIC_NUMBERS)
 					.enable(JsonReadFeature.ALLOW_TRAILING_COMMA)
+					.configure(SerializationFeature.WRITE_DATE_TIMESTAMPS_AS_NANOSECONDS, false)
+					.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, true)
 					.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false).build();
 
 	public static final FileVisitor<Path> DIRECTORY_CLEANER = new SimpleFileVisitor<Path>() {

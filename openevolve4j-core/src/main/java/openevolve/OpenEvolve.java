@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.UUID;
 import org.springframework.web.client.RestClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import openevolve.OpenEvolveConfig.Repository;
 import openevolve.mapelites.DefaultRepository;
 import openevolve.mapelites.listener.RepositoryListener.SolutionWriter;
 import openevolve.mapelites.listener.RepositoryListener;
@@ -15,6 +14,7 @@ import openevolve.mapelites.listener.MAPElitesListener.StateWriter;
 import openevolve.mapelites.MAPElites;
 import openevolve.mapelites.Migration;
 import openevolve.mapelites.FeatureScaler.ScaleMethod;
+import openevolve.mapelites.Repository.RepositoryState;
 import openevolve.mapelites.Repository.Solution;
 import openevolve.util.SolutionUtil;
 import openevolve.util.Util;
@@ -28,23 +28,26 @@ public class OpenEvolve {
 		var selConf = config.selection();
 		var random = selConf.random();
 		var bins = config.mapelites().bins();
+		var repository =
+				new DefaultRepository<>(config.comparator(), config.repository().populationSize(),
+						config.repository().archiveSize(), config.repository().islands());
 		var structure = SolutionUtil.initPath(config.solution().filePattern(), null,
 				config.solution().path());
+		var solutionsJson = config.solution().path().getParent().resolve("solutions.jsonl");
+		var stateJson = config.solution().path().getParent().resolve("state.json");
+
 		var initial = new ArrayList<EvolveSolution>();
 		if (initialSolutions != null && !initialSolutions.isEmpty()) {
 			restart = true;
 			initial.addAll(initialSolutions);
+		} else if (!restart) {
+			initial.clear();
 		} else {
 			initial.add(new EvolveSolution(null, Instant.now(), structure.target(),
 					config.solution().language(), null, Map.of(), Map.of(),
 					config.solution().fullRewrite()));
 		}
-		var solutionsJson = config.solution().path().getParent().resolve("solutions.jsonl");
-		var stateJson = config.solution().path().getParent().resolve("state.json");
 		var stateWriter = new StateWriter<EvolveSolution>(stateJson, mapper, restart);
-		var repository =
-				new DefaultRepository<>(config.comparator(), config.repository().populationSize(),
-						config.repository().archiveSize(), config.repository().islands());
 		if (stateWriter.getCurrentState() != null) {
 			repository.restore(stateWriter.getCurrentState().repository(), allSolutions);
 		}
