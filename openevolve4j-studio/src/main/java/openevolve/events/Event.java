@@ -85,7 +85,7 @@ public record Event<T extends Event.Payload>(String id, T payload) {
 
 		@Override
 		public Mono<Solutions> get() {
-			return getBean(ConfigService.class).map(s -> new Solutions(id, s.getSolutions(id), s.getBestSolution(id).id()));
+			return getBean(ConfigService.class).map(s -> new Solutions(id, s.getSolutions(id), s.getBestSolution(id).map(Solution::id).orElse(null)));
 		}
 
 		public String getId() {

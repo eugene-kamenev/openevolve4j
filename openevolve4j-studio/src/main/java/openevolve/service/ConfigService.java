@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -59,11 +60,11 @@ public class ConfigService {
     }
 
     @SuppressWarnings("unchecked")
-    public Solution<EvolveSolution> getBestSolution(String id) {
+    public Optional<Solution<EvolveSolution>> getBestSolution(String id) {
         var config = configs.get(id);
         var sols = solutions.getOrDefault(id, List.of());
         if (sols.isEmpty() || config == null) {
-            return null;
+            return Optional.empty();
         }
         var best = sols.get(0);
         Comparator<Solution<EvolveSolution>> comparator = config.comparator();
@@ -78,7 +79,7 @@ public class ConfigService {
                 }
             }
         }
-        return best;
+        return Optional.of(best);
     }
  
     public static Map<String, List<Solution<EvolveSolution>>> loadSolutions(Map<String, OpenEvolveConfig> configs) {
