@@ -17,15 +17,15 @@ import {
 import { ConfigContext } from '../App';
 
 const EvolutionView = ({ config }) => {
-  const { solutions, setSolutions, evolutionEvents, sendWsRequest, fetchSolutions } = useContext(ConfigContext);
+  const { solutions, setSolutions, statuses, setStatuses, evolutionEvents, sendWsRequest, fetchSolutions } = useContext(ConfigContext);
   const [evolutionType, setEvolutionType] = useState('restart');
   const [selectedSolutions, setSelectedSolutions] = useState([]);
-  const [isRunning, setIsRunning] = useState(false);
-  const [status, setStatus] = useState('idle'); // idle | running | paused | error
   const [showCustomModal, setShowCustomModal] = useState(false);
 
   const configSolutions = solutions[config?.id] || [];
   const configEvents = evolutionEvents[config?.id] || [];
+  const configStatus = statuses[config?.id] || 'NOT_RUNNING'; // Get status from backend
+  const isRunning = configStatus === 'RUNNING';
   
   // Filter solutions that can be used as initial solutions (have valid files)
   const viableSolutions = configSolutions.filter(solution => 
@@ -57,25 +57,6 @@ const EvolutionView = ({ config }) => {
     }
   ];
 
-  // Monitor evolution events to update status
-  useEffect(() => {
-    if (configEvents.length > 0) {
-      const lastEvent = configEvents[configEvents.length - 1];
-      switch (lastEvent.type) {
-        case 'ERROR':
-          setStatus('error');
-          setIsRunning(false);
-          break;
-        case 'ITERATION_DONE':
-          // Keep running status unless it's a final iteration
-          break;
-        default:
-          // For other events, keep the current status
-          break;
-      }
-    }
-  }, [configEvents]);
-
   const handleSolutionToggle = (solutionId) => {
     setSelectedSolutions(prev => 
       prev.includes(solutionId) 
@@ -103,9 +84,6 @@ const EvolutionView = ({ config }) => {
   };
 
   const handleRunEvolution = async () => {
-    setIsRunning(true);
-    setStatus('running');
-    
     try {
       // Build the event payload to match Java backend structure
       const eventPayload = {
@@ -118,31 +96,33 @@ const EvolutionView = ({ config }) => {
       };
 
       console.log('Starting evolution with payload:', eventPayload);
-      
       const response = await sendWsRequest(eventPayload);
-
+      // Handle STARTED response here
+      if (response && (response.type === 'STARTED' || response.status === 'RUNNING')) {
+        setStatuses(prev => ({
+          ...prev,
+          [config.id]: 'RUNNING'
+        }));
+      }
+      console.log('Evolution started response:', response);
     } catch (error) {
       console.error('Failed to start evolution:', error);
-      setStatus('error');
-    } finally {
-      // For demo purposes, reset after 2 seconds
-      setTimeout(() => {
-        setIsRunning(false);
-        setStatus('idle');
-      }, 2000);
     }
   };
 
   const handleStopEvolution = async () => {
     try {
-      await sendWsRequest({
+      const response = await sendWsRequest({
         type: 'STOP',
         id: config.id
       });
-      
-      setStatus('idle');
-      setIsRunning(false);
-      
+      // Handle STOPPED response here
+      if (response && (response.type === 'STOPPED' || response.status === 'NOT_RUNNING')) {
+        setStatuses(prev => ({
+          ...prev,
+          [config.id]: 'NOT_RUNNING'
+        }));
+      }
     } catch (error) {
       console.error('Failed to stop evolution:', error);
     }
@@ -157,19 +137,33 @@ const EvolutionView = ({ config }) => {
   };
 
   const getStatusIcon = () => {
-    switch (status) {
-      case 'running': return <Activity size={16} className="spinning text-accent" />;
-      case 'error': return <AlertCircle size={16} className="text-danger" />;
-      case 'paused': return <Clock size={16} className="text-warn" />;
+    // Check for error events in recent history for error state
+    const hasRecentError = configEvents.length > 0 && 
+      configEvents.slice(-5).some(event => event.type === 'ERROR');
+    
+    if (hasRecentError) {
+      return <AlertCircle size={16} className="text-danger" />;
+    }
+    
+    switch (configStatus) {
+      case 'RUNNING': return <Activity size={16} className="spinning text-accent" />;
+      case 'NOT_RUNNING': return <CheckCircle size={16} className="text-success" />;
       default: return <CheckCircle size={16} className="text-success" />;
     }
   };
 
   const getStatusText = () => {
-    switch (status) {
-      case 'running': return 'Running';
-      case 'error': return 'Error';
-      case 'paused': return 'Paused';
+    // Check for error events in recent history
+    const hasRecentError = configEvents.length > 0 && 
+      configEvents.slice(-5).some(event => event.type === 'ERROR');
+    
+    if (hasRecentError) {
+      return 'Error';
+    }
+    
+    switch (configStatus) {
+      case 'RUNNING': return 'Running';
+      case 'NOT_RUNNING': return 'Ready';
       default: return 'Ready';
     }
   };

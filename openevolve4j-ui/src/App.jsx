@@ -16,6 +16,7 @@ function App() {
   const ws = useRef(WebSocketService.getInstance());
   const [configs, setConfigs] = useState([]);
   const [solutions, setSolutions] = useState({}); // Map of configId -> solutions array
+  const [statuses, setStatuses] = useState({}); // Map of configId -> status (RUNNING, NOT_RUNNING)
   const [wsStatus, setWsStatus] = useState('connecting'); // connecting | open | error
   const [selectedConfig, setSelectedConfig] = useState(null);
   const [viewMode, setViewMode] = useState('welcome'); // 'welcome', 'edit', 'create'
@@ -31,13 +32,13 @@ function App() {
   // Centralized function to fetch solutions for a specific config
   const fetchSolutions = useCallback(async (configId) => {
     if (!configId) return;
-    
+
     try {
       const response = await sendWsRequest({
         type: 'GET_SOLUTIONS',
         id: configId
       });
-      
+
       if (response.id && response.solutions) {
         setSolutions(prev => ({
           ...prev,
@@ -53,7 +54,7 @@ function App() {
 
   const handleEvolutionEvent = (taskId, event) => {
     const timestamp = new Date().toISOString();
-    
+
     // Add event to evolution events log
     setEvolutionEvents(prev => ({
       ...prev,
@@ -70,7 +71,7 @@ function App() {
           }));
         }
         break;
-        
+
       case 'SOLUTION_REMOVED':
         if (event.solution?.id) {
           setSolutions(prev => ({
@@ -79,7 +80,7 @@ function App() {
           }));
         }
         break;
-        
+
       case 'CELL_IMPROVED':
         if (event.newSolution) {
           setSolutions(prev => {
@@ -98,12 +99,12 @@ function App() {
           });
         }
         break;
-        
+
       case 'NEW_BEST_SOLUTION':
         if (event.newBest) {
           setSolutions(prev => {
             const currentSolutions = prev[taskId] || [];
-            const updatedSolutions = currentSolutions.map(s => 
+            const updatedSolutions = currentSolutions.map(s =>
               s.id === event.newBest.id ? { ...event.newBest, isBest: true } : { ...s, isBest: false }
             );
             // If not found, add it
@@ -117,13 +118,13 @@ function App() {
           });
         }
         break;
-        
+
       case 'CELL_REJECTED':
       case 'ERROR':
       case 'ITERATION_DONE':
         // These events are mainly for logging and don't require solution state updates
         break;
-        
+
       default:
         console.warn('Unknown evolution event type:', event.type);
     }
@@ -203,17 +204,17 @@ function App() {
   const handleSave = async (configData) => {
     setLoading(true);
     setError(null);
-    
+
     try {
       if (viewMode === 'create') {
         const configId = Date.now().toString();
-        
+
         const response = await sendWsRequest({
           type: 'CONFIG_CREATE',
           id: configId,
           config: configData
         });
-        
+
         const newConfig = {
           id: configId,
           name: configData.name || `Config ${configs.length + 1}`,
@@ -224,14 +225,14 @@ function App() {
         setConfigs(prev => [...prev, newConfig]);
         setSelectedConfig(newConfig);
         setViewMode('edit');
-        
+
       } else if (viewMode === 'edit') {
         const response = await sendWsRequest({
           type: 'CONFIG_UPDATE',
           id: selectedConfig.id,
           config: configData
         });
-        
+
         const updatedConfig = {
           ...selectedConfig,
           config: configData,
@@ -276,6 +277,11 @@ function App() {
               }));
               setConfigs(configArray);
               setLastSync(new Date());
+
+              // Update statuses from backend response
+              if (response.statuses) {
+                setStatuses(response.statuses);
+              }
             }
           })
           .catch(err => {
@@ -288,6 +294,8 @@ function App() {
 
       if (eventType === 'message' && data.payload?.type) {
         const p = data.payload;
+        const eventId = p.id; // Top-level event ID for STARTED/STOPPED events
+
         switch (p.type) {
           case 'CONFIG_CREATED':
             if (p.config) {
@@ -300,7 +308,35 @@ function App() {
             }
             break;
           case 'CONFIG_DELETED':
-            if (p.id) setConfigs(prev => prev.filter(c => c.id !== p.id));
+            if (p.id) {
+              setConfigs(prev => prev.filter(c => c.id !== p.id));
+              // Also remove status for deleted config
+              setStatuses(prev => {
+                const newStatuses = { ...prev };
+                delete newStatuses[p.id];
+                return newStatuses;
+              });
+            }
+            break;
+          case 'STARTED':
+            console.log('Received STARTED event for id:', p.id);
+            // Update status to RUNNING for the correct config id
+            if (p.id) {
+              setStatuses(prev => ({
+                ...prev,
+                [p.id]: 'RUNNING'
+              }));
+            }
+            break;
+          case 'STOPPED':
+            console.log('Received STOPPED event for id:', p.id);
+            // Update status to NOT_RUNNING for the correct config id
+            if (p.id) {
+              setStatuses(prev => ({
+                ...prev,
+                [p.id]: 'NOT_RUNNING'
+              }));
+            }
             break;
           case 'EVOLUTION_EVENT':
             if (p.taskId && p.event) {
@@ -318,9 +354,9 @@ function App() {
         }
       }
     };
-    
+
     ws.current.addListener(listener);
-    
+
     // Cleanup function to remove the listener when component unmounts or effect re-runs
     return () => {
       ws.current.removeListener(listener);
@@ -329,11 +365,11 @@ function App() {
 
   const statusDot = (state) => {
     const color = state === 'open' ? 'var(--oe-success)' : state === 'error' ? 'var(--oe-danger)' : 'var(--oe-warn)';
-    return <span style={{ width:10, height:10, borderRadius:50, background:color, display:'inline-block', boxShadow:`0 0 0 3px rgba(0,0,0,.4)` }} />
+    return <span style={{ width: 10, height: 10, borderRadius: 50, background: color, display: 'inline-block', boxShadow: `0 0 0 3px rgba(0,0,0,.4)` }} />
   };
 
   return (
-    <ConfigContext.Provider value={{ configs, setConfigs, solutions, setSolutions, evolutionEvents, setEvolutionEvents, sendWsMessage, sendWsRequest, fetchSolutions }}>
+    <ConfigContext.Provider value={{ configs, setConfigs, solutions, setSolutions, statuses, setStatuses, evolutionEvents, setEvolutionEvents, sendWsMessage, sendWsRequest, fetchSolutions }}>
       <div className="oe-app-layout">
         {/* Sidebar */}
         <aside className="oe-sidebar">
@@ -341,47 +377,47 @@ function App() {
             <Settings />
             <span>OpenEvolve</span>
           </div>
-          
-          <SidebarConfigList 
+
+          <SidebarConfigList
             selectedConfigId={selectedConfig?.id}
             onSelectConfig={handleSelectConfig}
             onCreateNew={handleCreateNew}
           />
-          
+
           <div className="oe-footer">
             <div className="row gap-2 align-center">
               {statusDot(wsStatus)}
-              <span>{wsStatus==='open' ? 'Connected' : wsStatus==='error' ? 'Disconnected' : 'Connecting…'}</span>
+              <span>{wsStatus === 'open' ? 'Connected' : wsStatus === 'error' ? 'Disconnected' : 'Connecting…'}</span>
             </div>
-            {lastSync && <div className="text-faint" style={{marginTop:6}}>Synced {lastSync.toLocaleTimeString()}</div>}
+            {lastSync && <div className="text-faint" style={{ marginTop: 6 }}>Synced {lastSync.toLocaleTimeString()}</div>}
           </div>
         </aside>
 
         {/* Top Bar */}
         <header className="oe-topbar">
           <div className="topbar-left">
-            <h2 className="mb-0" style={{fontSize:18, fontWeight:600}}>
-              {viewMode === 'create' ? 'Create New Configuration' : 
-               viewMode === 'edit' ? `${selectedConfig?.name || 'Configuration'}` : 
-               'OpenEvolve Configuration Manager'}
+            <h2 className="mb-0" style={{ fontSize: 18, fontWeight: 600 }}>
+              {viewMode === 'create' ? 'Create New Configuration' :
+                viewMode === 'edit' ? `${selectedConfig?.name || 'Configuration'}` :
+                  'OpenEvolve Configuration Manager'}
             </h2>
-            
+
             {/* Tab Navigation for edit mode */}
             {viewMode === 'edit' && (
               <div className="tab-navigation">
-                <button 
+                <button
                   className={`tab-btn ${activeTab === 'configuration' ? 'active' : ''}`}
                   onClick={() => setActiveTab('configuration')}
                 >
                   <Settings size={14} /> Configuration
                 </button>
-                <button 
+                <button
                   className={`tab-btn ${activeTab === 'solutions' ? 'active' : ''}`}
                   onClick={() => setActiveTab('solutions')}
                 >
                   <Activity size={14} /> Solutions
                 </button>
-                <button 
+                <button
                   className={`tab-btn ${activeTab === 'evolution' ? 'active' : ''}`}
                   onClick={() => setActiveTab('evolution')}
                 >
@@ -390,10 +426,10 @@ function App() {
               </div>
             )}
           </div>
-          
+
           <div className="row gap-3">
             <button className="oe-btn outline" onClick={() => setLastSync(new Date())}>
-              <RefreshCw size={16}/>Refresh
+              <RefreshCw size={16} />Refresh
             </button>
           </div>
         </header>
@@ -401,16 +437,16 @@ function App() {
         {/* Main Content */}
         <main className="oe-content">
           {error && (
-            <div className="oe-surface p-4" style={{borderColor:'var(--oe-danger)', marginBottom: 16}}>
+            <div className="oe-surface p-4" style={{ borderColor: 'var(--oe-danger)', marginBottom: 16 }}>
               <div className="row justify-between align-center">
-                <span style={{color:'var(--oe-danger)'}}>{error}</span>
-                <button className="oe-btn ghost sm" onClick={()=>setError(null)}>Dismiss</button>
+                <span style={{ color: 'var(--oe-danger)' }}>{error}</span>
+                <button className="oe-btn ghost sm" onClick={() => setError(null)}>Dismiss</button>
               </div>
             </div>
           )}
-          
+
           {loading && (
-            <div className="oe-surface p-4" style={{borderColor:'var(--oe-accent)', marginBottom: 16}}>
+            <div className="oe-surface p-4" style={{ borderColor: 'var(--oe-accent)', marginBottom: 16 }}>
               <span className="text-dim">Working…</span>
             </div>
           )}
@@ -418,14 +454,14 @@ function App() {
           <div className="oe-surface elevated p-5 animate-fade-in">
             {viewMode === 'welcome' && (
               <div className="welcome-content">
-                <h3 style={{marginTop:0}}>Welcome to OpenEvolve</h3>
+                <h3 style={{ marginTop: 0 }}>Welcome to OpenEvolve</h3>
                 <p className="text-faint">Select a configuration from the sidebar to edit it, or create a new one to get started.</p>
                 <button className="oe-btn primary" onClick={handleCreateNew}>
-                  <Plus size={16}/> Create New Configuration
+                  <Plus size={16} /> Create New Configuration
                 </button>
               </div>
             )}
-            
+
             {(viewMode === 'edit' || viewMode === 'create') && (
               <>
                 {activeTab === 'configuration' && (
@@ -437,15 +473,15 @@ function App() {
                     disabled={loading}
                   />
                 )}
-                
+
                 {activeTab === 'solutions' && viewMode === 'edit' && (
                   <SolutionsView config={selectedConfig} />
                 )}
-                
+
                 {activeTab === 'evolution' && viewMode === 'edit' && (
                   <EvolutionView config={selectedConfig} />
                 )}
-                
+
               </>
             )}
           </div>
