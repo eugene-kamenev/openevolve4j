@@ -1,3 +1,121 @@
+// Enhanced JSON viewer component with expandable keys
+const MetadataViewer = ({ data, level = 0, name = null }) => {
+  const [expandedKeys, setExpandedKeys] = useState(new Set());
+  
+  const toggleKey = (key) => {
+    const newExpanded = new Set(expandedKeys);
+    if (newExpanded.has(key)) {
+      newExpanded.delete(key);
+    } else {
+      newExpanded.add(key);
+    }
+    setExpandedKeys(newExpanded);
+  };
+
+  const renderValue = (value, key = null, currentLevel = level) => {
+    if (value === null || value === undefined) {
+      return <span className="json-null">null</span>;
+    }
+    
+    if (typeof value === 'string') {
+      // Check if string contains newlines
+      if (value.includes('\n')) {
+        return <pre className="json-string multiline">{value}</pre>;
+      }
+      return <span className="json-string">{value}</span>;
+    }
+    
+    if (typeof value === 'number') {
+      return <span className="json-number">{value}</span>;
+    }
+    
+    if (typeof value === 'boolean') {
+      return <span className="json-boolean">{String(value)}</span>;
+    }
+    
+    if (Array.isArray(value)) {
+      const arrayKey = key || 'array';
+      const isExpanded = expandedKeys.has(arrayKey);
+      const isEmpty = value.length === 0;
+      
+      if (isEmpty) {
+        return <span className="json-bracket">[]</span>;
+      }
+      
+      return (
+        <div className="json-container">
+          <div 
+            className="json-header clickable" 
+            onClick={() => toggleKey(arrayKey)}
+          >
+            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <span className="json-bracket">[</span>
+            <span className="json-count">{value.length} {value.length === 1 ? 'item' : 'items'}</span>
+            {!isExpanded && <span className="json-bracket">]</span>}
+          </div>
+          {isExpanded && (
+            <div className="json-body">
+              {value.map((item, idx) => (
+                <div key={idx} className="json-item">
+                  <span className="json-index">{idx}:</span>
+                  {renderValue(item, `${arrayKey}[${idx}]`, currentLevel + 1)}
+                  {idx < value.length - 1 && <span className="json-comma">,</span>}
+                </div>
+              ))}
+              <span className="json-bracket">]</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    if (typeof value === 'object') {
+      const objectKey = key || 'object';
+      const isExpanded = expandedKeys.has(objectKey);
+      const entries = Object.entries(value);
+      const isEmpty = entries.length === 0;
+      
+      if (isEmpty) {
+        return <span className="json-bracket">{'{}'}</span>;
+      }
+      
+      return (
+        <div className="json-container">
+          <div 
+            className="json-header clickable" 
+            onClick={() => toggleKey(objectKey)}
+          >
+            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <span className="json-bracket">{'{'}</span>
+            <span className="json-count">{entries.length} {entries.length === 1 ? 'property' : 'properties'}</span>
+            {!isExpanded && <span className="json-bracket">{'}'}</span>}
+          </div>
+          {isExpanded && (
+            <div className="json-body">
+              {entries.map(([objKey, objValue], idx) => (
+                <div key={objKey} className="json-property">
+                  <span className="json-key">"{objKey}":</span>
+                  {renderValue(objValue, `${objectKey}.${objKey}`, currentLevel + 1)}
+                  {idx < entries.length - 1 && <span className="json-comma">,</span>}
+                </div>
+              ))}
+              <span className="json-bracket">{'}'}</span>
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    return <span className="json-string">{String(value)}</span>;
+  };
+
+  return (
+    <div className="json-viewer" style={{ '--level': level }}>
+      {name && <div className="json-root-name">{name}</div>}
+      {renderValue(data, name || 'root')}
+    </div>
+  );
+};
 import React, { useState, useEffect, useContext } from 'react';
 import { 
   FileCode, 
@@ -10,10 +128,9 @@ import {
   Download,
   Hash,
   Calendar,
-  Target,
-  Layers,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   GitBranch
 } from 'lucide-react';
 import { ConfigContext } from '../App';
@@ -28,6 +145,7 @@ const SolutionsView = ({ config }) => {
   const [expandedHistoryItems, setExpandedHistoryItems] = useState(new Set());
   const [selectedDiffFile, setSelectedDiffFile] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [showMetadataModal, setShowMetadataModal] = useState(false);
 
   const configSolutions = solutions[config?.id] || [];
 
@@ -174,12 +292,6 @@ const SolutionsView = ({ config }) => {
           </div>
           <div className="stat-item">
             <div className="stat-value">
-              {configSolutions.length > 0 ? Math.max(...configSolutions.map(s => s.iteration || 0)) : 0}
-            </div>
-            <div className="stat-label">Max Iteration</div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-value">
               {configSolutions.length > 0
                 ? (() => {
                     // Find best solution by first metric
@@ -194,12 +306,6 @@ const SolutionsView = ({ config }) => {
                 : '-'}
             </div>
             <div className="stat-label">Best Score</div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-value">
-              {new Set(configSolutions.map(s => s.islandId)).size}
-            </div>
-            <div className="stat-label">Active Islands</div>
           </div>
         </div>
       </div>
@@ -229,21 +335,9 @@ const SolutionsView = ({ config }) => {
                     <Hash size={14} /> ID
                   </th>
                   <th 
-                    className={`sortable ${sortField === 'iteration' ? sortDirection : ''}`}
-                    onClick={() => handleSort('iteration')}
-                  >
-                    <Target size={14} /> Iteration
-                  </th>
-                  <th 
                     className={`sortable ${sortField === 'score' ? sortDirection : ''}`}
                   >
                     <TrendingUp size={14} /> Score {config?.config?.metrics ? `(${Object.keys(config.config.metrics).join(', ')})` : ''}
-                  </th>
-                  <th 
-                    className={`sortable ${sortField === 'islandId' ? sortDirection : ''}`}
-                    onClick={() => handleSort('islandId')}
-                  >
-                    <Layers size={14} /> Island
                   </th>
                   <th 
                     className={`sortable ${sortField === 'dateCreated' ? sortDirection : ''}`}
@@ -265,14 +359,8 @@ const SolutionsView = ({ config }) => {
                       <td className="solution-id">
                         <code>{solution.id?.substring(0, 8) || '-'}</code>
                       </td>
-                      <td className="iteration">
-                        <span className="iteration-badge">{solution.iteration || 0}</span>
-                      </td>
                       <td className="score">
                         <span className="score-value">{formatScore(solution.fitness)}</span>
-                      </td>
-                      <td className="island">
-                        <span className="island-badge">#{solution.islandId || 0}</span>
                       </td>
                       <td className="created">
                         <span className="date-text">
@@ -320,20 +408,23 @@ const SolutionsView = ({ config }) => {
                   <code>{selectedSolution.id}</code>
                 </div>
                 <div className="detail-item">
-                  <span className="detail-label">Iteration:</span>
-                  <span>{selectedSolution.iteration}</span>
-                </div>
-                <div className="detail-item">
-                  <span className="detail-label">Island:</span>
-                  <span>#{selectedSolution.islandId}</span>
-                </div>
-                <div className="detail-item">
                   <span className="detail-label">Parent ID:</span>
                   <code>{selectedSolution.solution?.parentId || 'None'}</code>
                 </div>
+                <div className="detail-item">
+                  <span className="detail-label">LLM Model:</span>
+                  <span>{selectedSolution.solution?.metadata?.llmModel || '-'}</span>
+                </div>
+                <div className="detail-item">
+                  <button
+                    className="oe-btn outline sm"
+                    onClick={() => setShowMetadataModal(true)}
+                  >
+                    View Metadata
+                  </button>
+                </div>
               </div>
             </div>
-            
             {selectedSolution.fitness && (
               <div className="detail-section">
                 <h5>Fitness</h5>
@@ -345,7 +436,6 @@ const SolutionsView = ({ config }) => {
                 </div>
               </div>
             )}
-            
             {/* Evolution History Section */}
             {(() => {
               const evolutionHistory = getEvolutionHistory(selectedSolution);
@@ -371,7 +461,6 @@ const SolutionsView = ({ config }) => {
                               )}
                               <span className="history-generation">Gen {evolutionHistory.length - index}</span>
                               <code className="history-id">{historySolution.id?.substring(0, 8)}</code>
-                              <span className="history-iteration">Iter: {historySolution.iteration}</span>
                               <span className="history-score">Score: {formatScore(historySolution.fitness)}</span>
                             </div>
                           </div>
@@ -396,7 +485,6 @@ const SolutionsView = ({ config }) => {
                 </div>
               );
             })()}
-            
             {selectedSolution.solution?.files && Object.keys(selectedSolution.solution.files).length > 0 && (
               <div className="detail-section">
                 <h5>Files ({Object.keys(selectedSolution.solution.files).length})</h5>
@@ -417,7 +505,6 @@ const SolutionsView = ({ config }) => {
           </div>
         </div>
       )}
-
       {/* Diff View Modal */}
       {selectedDiffFile && (
         <div className="diff-modal-overlay" onClick={() => setSelectedDiffFile(null)}>
@@ -455,7 +542,6 @@ const SolutionsView = ({ config }) => {
           </div>
         </div>
       )}
-
       {/* File Viewer Modal */}
       {selectedFile && (
         <div className="diff-modal-overlay" onClick={() => setSelectedFile(null)}>
@@ -489,8 +575,29 @@ const SolutionsView = ({ config }) => {
           </div>
         </div>
       )}
+      {/* Metadata Modal */}
+      {showMetadataModal && selectedSolution && (
+        <div className="diff-modal-overlay" onClick={() => setShowMetadataModal(false)}>
+          <div className="diff-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="diff-modal-header">
+              <h4>Solution Metadata</h4>
+              <button
+                className="oe-btn ghost sm"
+                onClick={() => setShowMetadataModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="diff-modal-content">
+              <div className="metadata-modal-content">
+                <MetadataViewer data={selectedSolution.solution?.metadata} name="metadata" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-};
+}
 
 export default SolutionsView;

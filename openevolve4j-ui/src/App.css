@@ -1,3 +1,156 @@
+/* Enhanced JSON Viewer Styling */
+.metadata-modal-content {
+  background: var(--oe-surface);
+  border-radius: var(--oe-radius);
+  border: 1px solid var(--oe-border);
+  padding: 20px;
+  font-family: var(--oe-font-mono);
+  font-size: 13px;
+  color: var(--oe-text);
+  max-height: 60vh;
+  overflow-y: auto;
+  line-height: 1.5;
+}
+
+.json-viewer {
+  width: 100%;
+  color: var(--oe-text);
+}
+
+.json-root-name {
+  font-weight: 600;
+  color: var(--oe-accent);
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.json-container {
+  margin-left: calc(var(--level, 0) * 16px);
+}
+
+.json-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  padding: 4px 6px;
+  border-radius: var(--oe-radius-xs);
+  transition: background-color 0.15s ease;
+}
+
+.json-header.clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.json-header.clickable:hover {
+  background: var(--oe-surface-hover);
+}
+
+.json-header svg {
+  color: var(--oe-text-dim);
+  transition: transform 0.15s ease;
+}
+
+.json-body {
+  margin-left: 20px;
+  border-left: 1px solid var(--oe-border);
+  padding-left: 12px;
+  margin-top: 4px;
+}
+
+.json-item,
+.json-property {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+.json-property {
+  flex-wrap: wrap;
+}
+
+.json-key {
+  color: var(--oe-accent);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.json-index {
+  color: var(--oe-text-dim);
+  font-weight: 500;
+  flex-shrink: 0;
+  min-width: 20px;
+}
+
+.json-string {
+  color: var(--oe-success);
+  word-break: break-word;
+}
+
+.json-string.multiline {
+  display: block;
+  margin-top: 4px;
+  padding: 8px 12px;
+  background: var(--oe-bg-alt);
+  border: 1px solid var(--oe-border);
+  border-radius: var(--oe-radius-sm);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-width: 100%;
+  overflow-x: auto;
+  font-family: var(--oe-font-mono);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.json-number {
+  color: #d73a49;
+  font-weight: 500;
+}
+
+.json-boolean {
+  color: #005cc5;
+  font-weight: 500;
+}
+
+.json-null {
+  color: var(--oe-text-dim);
+  font-style: italic;
+}
+
+.json-bracket {
+  color: var(--oe-text-dim);
+  font-weight: 500;
+}
+
+.json-comma {
+  color: var(--oe-text-dim);
+  margin-left: -4px;
+}
+
+.json-count {
+  color: var(--oe-text-dim);
+  font-size: 11px;
+  font-style: italic;
+  margin-left: 4px;
+  background: var(--oe-bg-alt);
+  padding: 2px 6px;
+  border-radius: var(--oe-radius-xs);
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .json-number {
+    color: #ff7b72;
+  }
+  
+  .json-boolean {
+    color: #79c0ff;
+  }
+}
 /* App overrides for redesigned UI */
 * { box-sizing: border-box; }
 
