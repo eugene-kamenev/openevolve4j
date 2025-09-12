@@ -15,8 +15,9 @@ import reactor.core.publisher.Sinks;
 @Service
 public class EventBus implements DisposableBean {
 
-    private final Sinks.Many<Event<? extends Output>> outputSink = Sinks.many().multicast().onBackpressureBuffer();
-    private final Flux<Event<? extends Output>> outputEventStream = outputSink.asFlux().share();
+    public final Sinks.Many<Event<? extends Output>> outputSink =
+            Sinks.many().multicast().directBestEffort();
+    public final Flux<Event<? extends Output>> outputEventStream = outputSink.asFlux().share();
 
     private final ObjectReader eventReader;
     private final ObjectWriter eventWriter;
@@ -49,8 +50,7 @@ public class EventBus implements DisposableBean {
     public Mono<Void> toOutput(Event<? extends Output> event) {
         // we use tryEmitNext here without checking the result, because if there are no subscribers,
         // we don't want to fail the whole operation, just drop the event
-        return Mono.fromRunnable(() -> outputSink.tryEmitNext(event).orThrow())
-            .then();
+        return Mono.fromRunnable(() -> outputSink.tryEmitNext(event).orThrow()).then();
     }
 
     @Override

@@ -31,12 +31,17 @@ public class OpenEvolveService {
         this.restBuilder = restBuilder;
     }
 
-    public Mono<Void> create(String id, OpenEvolveConfig config, boolean restart, List<EvolveSolution> initialSolutions, Map<UUID, Solution<EvolveSolution>> allSolutions) {
-        var newMapElites = OpenEvolve.create(config, Constants.OBJECT_MAPPER, restart, initialSolutions, allSolutions, restBuilder);
-        newMapElites.addListener(new EventListener(eventService, id));
+    public Mono<Void> create(String id, OpenEvolveConfig config, boolean restart,
+            List<EvolveSolution> initialSolutions,
+            Map<UUID, Solution<EvolveSolution>> allSolutions) {
+        var listener = new EventListener(eventService, id);
+        var newMapElites = OpenEvolve.create(config, Constants.OBJECT_MAPPER, restart,
+                initialSolutions, allSolutions, restBuilder, List.of(listener));
+        newMapElites.addListener(listener);
         mapElites.put(id, newMapElites);
-        return Mono.fromRunnable(() -> newMapElites.run(config.mapelites().numIterations()))
-                .subscribeOn(Schedulers.boundedElastic()).then();
+        return startProcess(id,
+                Mono.fromRunnable(() -> newMapElites.run(config.mapelites().numIterations()))
+                        .subscribeOn(Schedulers.boundedElastic()));
     }
 
     public <T> Mono<Void> startProcess(String taskId, Mono<T> task) {

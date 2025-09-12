@@ -39,6 +39,47 @@ public record Event<T extends Event.Payload>(String id, T payload) {
 	public record Solutions(String id, List<Solution<EvolveSolution>> solutions) implements Output {
 	}
 
+	public record OutputEvolutionEvent<T extends EvolutionEvent>(String taskId, T event)
+			implements Output {
+	}
+
+	@JsonSubTypes({
+			@JsonSubTypes.Type(value = EvolutionEvent.SolutionAdded.class, name = "SOLUTION_ADDED"),
+			@JsonSubTypes.Type(value = EvolutionEvent.SolutionRemoved.class,
+					name = "SOLUTION_REMOVED"),
+			@JsonSubTypes.Type(value = EvolutionEvent.CellImproved.class, name = "CELL_IMPROVED"),
+			@JsonSubTypes.Type(value = EvolutionEvent.CellRejected.class, name = "CELL_REJECTED"),
+			@JsonSubTypes.Type(value = EvolutionEvent.NewBestSolution.class,
+					name = "NEW_BEST_SOLUTION"),
+			@JsonSubTypes.Type(value = EvolutionEvent.Error.class, name = "ERROR"),
+			@JsonSubTypes.Type(value = EvolutionEvent.IterationDone.class,
+					name = "ITERATION_DONE")})
+	@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "type")
+	public interface EvolutionEvent extends Output {
+		public record SolutionAdded(Solution<EvolveSolution> solution) implements EvolutionEvent {
+		}
+		public record SolutionRemoved(Solution<EvolveSolution> solution) implements EvolutionEvent {
+		}
+		public record CellImproved(Solution<EvolveSolution> newSolution,
+				Solution<EvolveSolution> previousSolution, int iteration)
+				implements EvolutionEvent {
+		}
+		public record CellRejected(Solution<EvolveSolution> candidateSolution,
+				Solution<EvolveSolution> existingSolution, int iteration)
+				implements EvolutionEvent {
+		}
+		public record NewBestSolution(Solution<EvolveSolution> newBest,
+				Solution<EvolveSolution> previousBest, int iteration) implements EvolutionEvent {
+		}
+
+		public record Error(String exceptionMessage, String context, int iteration)
+				implements EvolutionEvent {
+		}
+
+		public record IterationDone(int iteration) implements EvolutionEvent {
+		}
+	}
+
 	public static class GetSolutions extends Input<Solutions> {
 		private String id;
 
@@ -73,17 +114,16 @@ public record Event<T extends Event.Payload>(String id, T payload) {
 			return Mono.zip(getBean(OpenEvolveService.class), getBean(ConfigService.class))
 					.flatMap(function((openEvolveService, configService) -> {
 						var solutions = configService.getSolutions(id);
-						var solutionsById = solutions.stream()
-								.collect(Collectors.toMap(Solution::id, s -> s));
+						var solutionsById =
+								solutions.stream().collect(Collectors.toMap(Solution::id, s -> s));
 						var initial = new ArrayList<EvolveSolution>();
 						if (initialSolutions != null && !initialSolutions.isEmpty()) {
 							initial.addAll(solutions.stream()
 									.filter(s -> initialSolutions.contains(s.id()))
-									.map(s -> s.solution())
-									.toList());
+									.map(s -> s.solution()).toList());
 						}
-						return openEvolveService
-								.create(id, configService.findById(id), restart, initial, solutionsById).thenReturn(new Started());
+						return openEvolveService.create(id, configService.findById(id), restart,
+								initial, solutionsById).thenReturn(new Started());
 					}));
 		}
 
@@ -213,7 +253,10 @@ public record Event<T extends Event.Payload>(String id, T payload) {
 			@JsonSubTypes.Type(value = Event.UpdateConfig.class, name = "CONFIG_UPDATE"),
 			@JsonSubTypes.Type(value = Event.DeleteConfig.class, name = "CONFIG_DELETE"),
 			@JsonSubTypes.Type(value = Event.GetSolutions.class, name = "GET_SOLUTIONS"),
-			@JsonSubTypes.Type(value = Event.Solutions.class, name = "SOLUTIONS"),})
+			@JsonSubTypes.Type(value = Event.Solutions.class, name = "SOLUTIONS"),
+			@JsonSubTypes.Type(value = Event.Started.class, name = "STARTED"),
+			@JsonSubTypes.Type(value = Event.Stopped.class, name = "STOPPED"),
+			@JsonSubTypes.Type(value = Event.OutputEvolutionEvent.class, name = "EVOLUTION_EVENT")})
 	@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "type")
 	public static interface Payload {
 	}
