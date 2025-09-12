@@ -17,15 +17,15 @@ import {
 import { ConfigContext } from '../App';
 
 const EvolutionView = ({ config }) => {
-  const { solutions, setSolutions, sendWsRequest } = useContext(ConfigContext);
+  const { solutions, setSolutions, evolutionEvents, sendWsRequest, fetchSolutions } = useContext(ConfigContext);
   const [evolutionType, setEvolutionType] = useState('restart');
   const [selectedSolutions, setSelectedSolutions] = useState([]);
   const [isRunning, setIsRunning] = useState(false);
   const [status, setStatus] = useState('idle'); // idle | running | paused | error
-  const [logs, setLogs] = useState([]);
   const [showCustomModal, setShowCustomModal] = useState(false);
 
   const configSolutions = solutions[config?.id] || [];
+  const configEvents = evolutionEvents[config?.id] || [];
   
   // Filter solutions that can be used as initial solutions (have valid files)
   const viableSolutions = configSolutions.filter(solution => 
@@ -57,32 +57,24 @@ const EvolutionView = ({ config }) => {
     }
   ];
 
-  // Fetch solutions when component mounts or config changes
+  // Monitor evolution events to update status
   useEffect(() => {
-    if (config?.id) {
-      fetchSolutions();
-    }
-  }, [config?.id]);
-
-  const fetchSolutions = async () => {
-    if (!config?.id) return;
-    
-    try {
-      const response = await sendWsRequest({
-        type: 'GET_SOLUTIONS',
-        id: config.id
-      });
-      
-      if (response.id && response.solutions) {
-        setSolutions(prev => ({
-          ...prev,
-          [response.id]: response.solutions
-        }));
+    if (configEvents.length > 0) {
+      const lastEvent = configEvents[configEvents.length - 1];
+      switch (lastEvent.type) {
+        case 'ERROR':
+          setStatus('error');
+          setIsRunning(false);
+          break;
+        case 'ITERATION_DONE':
+          // Keep running status unless it's a final iteration
+          break;
+        default:
+          // For other events, keep the current status
+          break;
       }
-    } catch (error) {
-      console.error('Failed to fetch solutions:', error);
     }
-  };
+  }, [configEvents]);
 
   const handleSolutionToggle = (solutionId) => {
     setSelectedSolutions(prev => 
@@ -128,22 +120,10 @@ const EvolutionView = ({ config }) => {
       console.log('Starting evolution with payload:', eventPayload);
       
       const response = await sendWsRequest(eventPayload);
-      
-      // Add a log entry
-      setLogs(prev => [...prev, {
-        timestamp: new Date().toISOString(),
-        level: 'info',
-        message: `Evolution started with type: ${evolutionType}`
-      }]);
 
     } catch (error) {
       console.error('Failed to start evolution:', error);
       setStatus('error');
-      setLogs(prev => [...prev, {
-        timestamp: new Date().toISOString(),
-        level: 'error',
-        message: `Failed to start evolution: ${error.message}`
-      }]);
     } finally {
       // For demo purposes, reset after 2 seconds
       setTimeout(() => {
@@ -163,11 +143,6 @@ const EvolutionView = ({ config }) => {
       setStatus('idle');
       setIsRunning(false);
       
-      setLogs(prev => [...prev, {
-        timestamp: new Date().toISOString(),
-        level: 'info',
-        message: 'Evolution stopped by user'
-      }]);
     } catch (error) {
       console.error('Failed to stop evolution:', error);
     }
@@ -196,6 +171,60 @@ const EvolutionView = ({ config }) => {
       case 'error': return 'Error';
       case 'paused': return 'Paused';
       default: return 'Ready';
+    }
+  };
+
+  const formatEvolutionEvent = (event) => {
+    const baseInfo = {
+      timestamp: event.timestamp,
+      level: 'info'
+    };
+
+    switch (event.type) {
+      case 'SOLUTION_ADDED':
+        return {
+          ...baseInfo,
+          message: `New solution added: ${event.solution?.id?.substring(0, 8) || 'unknown'} (Score: ${event.solution?.fitness?.score?.toFixed(3) || 'N/A'})`
+        };
+      case 'SOLUTION_REMOVED':
+        return {
+          ...baseInfo,
+          message: `Solution removed: ${event.solution?.id?.substring(0, 8) || 'unknown'}`
+        };
+      case 'CELL_IMPROVED':
+        return {
+          ...baseInfo,
+          level: 'success',
+          message: `Cell improved! New: ${event.newSolution?.fitness?.score?.toFixed(3) || 'N/A'} (was: ${event.previousSolution?.fitness?.score?.toFixed(3) || 'N/A'}) - Iteration ${event.iteration || 'N/A'}`
+        };
+      case 'CELL_REJECTED':
+        return {
+          ...baseInfo,
+          level: 'warn',
+          message: `Cell rejected: ${event.candidateSolution?.fitness?.score?.toFixed(3) || 'N/A'} vs existing ${event.existingSolution?.fitness?.score?.toFixed(3) || 'N/A'} - Iteration ${event.iteration || 'N/A'}`
+        };
+      case 'NEW_BEST_SOLUTION':
+        return {
+          ...baseInfo,
+          level: 'success',
+          message: `🎉 NEW BEST SOLUTION! Score: ${event.newBest?.fitness?.score?.toFixed(3) || 'N/A'} (was: ${event.previousBest?.fitness?.score?.toFixed(3) || 'N/A'}) - Iteration ${event.iteration || 'N/A'}`
+        };
+      case 'ERROR':
+        return {
+          ...baseInfo,
+          level: 'error',
+          message: `Error in iteration ${event.iteration || 'N/A'}: ${event.exceptionMessage || 'Unknown error'} ${event.context ? `(${event.context})` : ''}`
+        };
+      case 'ITERATION_DONE':
+        return {
+          ...baseInfo,
+          message: `Iteration ${event.iteration || 'N/A'} completed`
+        };
+      default:
+        return {
+          ...baseInfo,
+          message: `Unknown event: ${event.type}`
+        };
     }
   };
 
@@ -358,16 +387,19 @@ const EvolutionView = ({ config }) => {
         </div>
 
         {/* Evolution Log */}
-        {logs.length > 0 && (
+        {configEvents.length > 0 && (
           <div className="evolution-section">
             <h4>Evolution Log</h4>
             <div className="evolution-log">
-              {logs.slice(-10).map((log, index) => (
-                <div key={index} className={`log-entry ${log.level}`}>
-                  <span className="log-time">{formatDate(log.timestamp)}</span>
-                  <span className="log-message">{log.message}</span>
-                </div>
-              ))}
+              {configEvents.slice(-10).map((event, index) => {
+                const formattedEvent = formatEvolutionEvent(event);
+                return (
+                  <div key={index} className={`log-entry ${formattedEvent.level}`}>
+                    <span className="log-time">{formatDate(formattedEvent.timestamp)}</span>
+                    <span className="log-message">{formattedEvent.message}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

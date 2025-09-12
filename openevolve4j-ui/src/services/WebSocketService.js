@@ -59,6 +59,12 @@ class WebSocketService {
       console.log('WebSocket connection closed');
       this.isConnected = false;
       this.notifyListeners('close', null);
+      
+      // Clear any pending requests when connection is lost
+      this.pendingRequests.forEach((pendingRequest) => {
+        pendingRequest.reject(new Error('WebSocket connection lost'));
+      });
+      this.pendingRequests.clear();
     };
   }
   
@@ -118,10 +124,16 @@ class WebSocketService {
   }
   
   addListener(listener) {
-    this.listeners.push(listener);
-    // If already connected, notify the new listener
-    if (this.isConnected) {
-      listener('open', null);
+    // Prevent duplicate listeners
+    if (!this.listeners.includes(listener)) {
+      this.listeners.push(listener);
+      console.log(`WebSocket listener added. Total listeners: ${this.listeners.length}`);
+      // If already connected, notify the new listener
+      if (this.isConnected) {
+        listener('open', null);
+      }
+    } else {
+      console.warn('Attempted to add duplicate WebSocket listener');
     }
   }
   
@@ -129,6 +141,9 @@ class WebSocketService {
     const index = this.listeners.indexOf(listener);
     if (index !== -1) {
       this.listeners.splice(index, 1);
+      console.log(`WebSocket listener removed. Total listeners: ${this.listeners.length}`);
+    } else {
+      console.warn('Attempted to remove non-existent WebSocket listener');
     }
   }
   

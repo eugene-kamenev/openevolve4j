@@ -20,7 +20,7 @@ import { ConfigContext } from '../App';
 import CodeEditor from './editor/CodeEditor';
 
 const SolutionsView = ({ config }) => {
-  const { solutions, setSolutions, sendWsRequest } = useContext(ConfigContext);
+  const { solutions, setSolutions, sendWsRequest, fetchSolutions } = useContext(ConfigContext);
   const [loading, setLoading] = useState(false);
   const [selectedSolution, setSelectedSolution] = useState(null);
   const [sortField, setSortField] = useState('iteration');
@@ -31,26 +31,12 @@ const SolutionsView = ({ config }) => {
 
   const configSolutions = solutions[config?.id] || [];
 
-  // Fetch solutions when component mounts or config changes
-  useEffect(() => {
-    if (config?.id) {
-      fetchSolutions();
-    }
-  }, [config?.id]);
-
-  const fetchSolutions = async () => {
+  const handleRefreshSolutions = async () => {
     if (!config?.id) return;
     
     setLoading(true);
     try {
-      sendWsRequest({
-        type: 'GET_SOLUTIONS',
-        id: config.id
-      }).then(response => {
-        if (response.id && response.solutions) {
-          setSolutions(prev => ({ ...prev, [response.id]: response.solutions }));
-        }
-      });
+      await fetchSolutions(config.id);
     } catch (error) {
       console.error('Error fetching solutions:', error);
     } finally {
@@ -168,7 +154,7 @@ const SolutionsView = ({ config }) => {
           <div className="header-actions">
             <button 
               className="oe-btn outline" 
-              onClick={fetchSolutions}
+              onClick={handleRefreshSolutions}
               disabled={loading}
             >
               <RefreshCw size={16} className={loading ? 'spinning' : ''} />

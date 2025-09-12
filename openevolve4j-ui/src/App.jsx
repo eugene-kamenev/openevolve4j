@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, createContext } from 'react';
+import React, { useState, useEffect, useRef, createContext, useCallback } from 'react';
 import { Settings, Plus, RefreshCw, CloudUpload, FolderOpen, Database, Activity, Layers, Target } from 'lucide-react';
 import ConfigForm from './components/ConfigForm';
 import SidebarConfigList from './components/SidebarConfigList';
@@ -23,9 +23,111 @@ function App() {
   const [lastSync, setLastSync] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [evolutionEvents, setEvolutionEvents] = useState({}); // Map of configId -> events array
 
-  const sendWsMessage = (event) => ws.current.send({ payload: event });
-  const sendWsRequest = (event, timeout) => ws.current.sendRequest(event, timeout);
+  const sendWsMessage = useCallback((event) => ws.current.send({ payload: event }), []);
+  const sendWsRequest = useCallback((event, timeout) => ws.current.sendRequest(event, timeout), []);
+
+  // Centralized function to fetch solutions for a specific config
+  const fetchSolutions = useCallback(async (configId) => {
+    if (!configId) return;
+    
+    try {
+      const response = await sendWsRequest({
+        type: 'GET_SOLUTIONS',
+        id: configId
+      });
+      
+      if (response.id && response.solutions) {
+        setSolutions(prev => ({
+          ...prev,
+          [response.id]: response.solutions
+        }));
+      }
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch solutions:', error);
+      throw error;
+    }
+  }, [sendWsRequest]);
+
+  const handleEvolutionEvent = (taskId, event) => {
+    const timestamp = new Date().toISOString();
+    
+    // Add event to evolution events log
+    setEvolutionEvents(prev => ({
+      ...prev,
+      [taskId]: [...(prev[taskId] || []), { ...event, timestamp }]
+    }));
+
+    // Handle different evolution events
+    switch (event.type) {
+      case 'SOLUTION_ADDED':
+        if (event.solution) {
+          setSolutions(prev => ({
+            ...prev,
+            [taskId]: [...(prev[taskId] || []), event.solution]
+          }));
+        }
+        break;
+        
+      case 'SOLUTION_REMOVED':
+        if (event.solution?.id) {
+          setSolutions(prev => ({
+            ...prev,
+            [taskId]: (prev[taskId] || []).filter(s => s.id !== event.solution.id)
+          }));
+        }
+        break;
+        
+      case 'CELL_IMPROVED':
+        if (event.newSolution) {
+          setSolutions(prev => {
+            const currentSolutions = prev[taskId] || [];
+            const updatedSolutions = currentSolutions.map(s =>
+              s.id === event.newSolution.id ? event.newSolution : s
+            );
+            // If not found, add it
+            if (!updatedSolutions.find(s => s.id === event.newSolution.id)) {
+              updatedSolutions.push(event.newSolution);
+            }
+            return {
+              ...prev,
+              [taskId]: updatedSolutions
+            };
+          });
+        }
+        break;
+        
+      case 'NEW_BEST_SOLUTION':
+        if (event.newBest) {
+          setSolutions(prev => {
+            const currentSolutions = prev[taskId] || [];
+            const updatedSolutions = currentSolutions.map(s => 
+              s.id === event.newBest.id ? { ...event.newBest, isBest: true } : { ...s, isBest: false }
+            );
+            // If not found, add it
+            if (!updatedSolutions.find(s => s.id === event.newBest.id)) {
+              updatedSolutions.push({ ...event.newBest, isBest: true });
+            }
+            return {
+              ...prev,
+              [taskId]: updatedSolutions
+            };
+          });
+        }
+        break;
+        
+      case 'CELL_REJECTED':
+      case 'ERROR':
+      case 'ITERATION_DONE':
+        // These events are mainly for logging and don't require solution state updates
+        break;
+        
+      default:
+        console.warn('Unknown evolution event type:', event.type);
+    }
+  };
 
   const createDefaultConfig = () => {
     return new OpenEvolveConfig({
@@ -84,6 +186,13 @@ function App() {
     setViewMode('edit');
     setActiveTab('configuration'); // Reset to configuration tab when selecting config
   };
+
+  // Fetch solutions when a config is selected for editing
+  useEffect(() => {
+    if (selectedConfig?.id && viewMode === 'edit') {
+      fetchSolutions(selectedConfig.id);
+    }
+  }, [selectedConfig?.id, viewMode, fetchSolutions]);
 
   const handleCreateNew = () => {
     setSelectedConfig(createDefaultConfig());
@@ -193,10 +302,29 @@ function App() {
           case 'CONFIG_DELETED':
             if (p.id) setConfigs(prev => prev.filter(c => c.id !== p.id));
             break;
+          case 'EVOLUTION_EVENT':
+            if (p.taskId && p.event) {
+              handleEvolutionEvent(p.taskId, p.event);
+            }
+            break;
+          case 'SOLUTIONS':
+            if (p.id && p.solutions) {
+              setSolutions(prev => ({
+                ...prev,
+                [p.id]: p.solutions
+              }));
+            }
+            break;
         }
       }
     };
+    
     ws.current.addListener(listener);
+    
+    // Cleanup function to remove the listener when component unmounts or effect re-runs
+    return () => {
+      ws.current.removeListener(listener);
+    };
   }, []);
 
   const statusDot = (state) => {
@@ -205,7 +333,7 @@ function App() {
   };
 
   return (
-    <ConfigContext.Provider value={{ configs, setConfigs, solutions, setSolutions, sendWsMessage, sendWsRequest }}>
+    <ConfigContext.Provider value={{ configs, setConfigs, solutions, setSolutions, evolutionEvents, setEvolutionEvents, sendWsMessage, sendWsRequest, fetchSolutions }}>
       <div className="oe-app-layout">
         {/* Sidebar */}
         <aside className="oe-sidebar">
