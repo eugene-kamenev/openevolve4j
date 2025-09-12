@@ -22,9 +22,9 @@ import static reactor.function.TupleUtils.function;
 public record Event<T extends Event.Payload>(String id, T payload) {
 
 	// Output payloads
-	public record Stopped() implements Output {
+	public record Stopped(String id) implements Output {
 	}
-	public record Started() implements Output {
+	public record Started(String id) implements Output {
 	}
 	public record ConfigCreated(String id, OpenEvolveConfig config) implements Output {
 	}
@@ -123,7 +123,7 @@ public record Event<T extends Event.Payload>(String id, T payload) {
 									.map(s -> s.solution()).toList());
 						}
 						return openEvolveService.create(id, configService.findById(id), restart,
-								initial, solutionsById).thenReturn(new Started());
+								initial, solutionsById).thenReturn(new Started(id));
 					}));
 		}
 
@@ -158,7 +158,7 @@ public record Event<T extends Event.Payload>(String id, T payload) {
 		@Override
 		public Mono<Stopped> get() {
 			return getBean(OpenEvolveService.class)
-					.flatMap(s -> s.stopProcess(id).thenReturn(new Stopped()));
+					.flatMap(s -> s.stopProcess(id).thenReturn(new Stopped(id)));
 		}
 
 		public String getId() {
