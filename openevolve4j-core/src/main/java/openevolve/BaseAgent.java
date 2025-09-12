@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
 import org.springframework.ai.chat.prompt.PromptTemplate;
+import openevolve.mapelites.Repository.Solution;
 import openevolve.util.CodeParsingUtils;
 import openevolve.util.SolutionUtil;
 import openevolve.util.SolutionUtil.PathStructure;
@@ -24,10 +25,13 @@ public abstract class BaseAgent {
 		this.random = random;
 	}
 
-	public EvolveSolution newSolution(EvolveStep step, List<Map<String, String>> llmRequest, String llmResponse) {
+	public EvolveSolution newSolution(Solution<EvolveSolution> parent, Map<String, Object> metadata) {
+		var llmResponse = (String) metadata.get("llmResponse");
+		if (llmResponse == null || llmResponse.isBlank()) {
+			return null;
+		}
 		String changes = null;
 		String newSolution = null;
-		var parent = step.parent();
 		if (parent.solution().fullRewrite()) {
 			newSolution = CodeParsingUtils.parseFullRewrite(llmResponse, parent.solution().language()).orElse(null);
 			changes = "Full rewrite";
@@ -38,10 +42,6 @@ public abstract class BaseAgent {
 				changes = CodeParsingUtils.formatDiffSummary(diffs);
 			}
 		}
-		Map<String, Object> metadata = Map.of(
-			"llmRequest", llmRequest,
-			"llmResponse", llmResponse
-		);
 		if (newSolution != null) {
 			var newTarget = PathStructure.applyChanges(newSolution, parent.solution().files());
 			var evolvedSolution = new EvolveSolution(

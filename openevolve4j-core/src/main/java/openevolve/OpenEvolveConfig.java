@@ -65,7 +65,7 @@ public record OpenEvolveConfig(Solution solution, Selection selection, Migration
 
 	public record Selection(Long seed, Double explorationRatio, Double exploitationRatio,
 			Double eliteSelectionRatio, Integer numInspirations, Integer numberDiverse,
-			Integer numberTop, Random random) {
+			Integer numberTop, @JsonIgnore Random random) {
 		public Selection {
 			seed = seed == null ? 42L : seed;
 			random = random == null ? new Random(seed) : random;

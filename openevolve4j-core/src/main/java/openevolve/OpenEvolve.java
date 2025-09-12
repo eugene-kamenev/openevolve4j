@@ -7,8 +7,10 @@ import java.util.Map;
 import java.util.UUID;
 import org.springframework.web.client.RestClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import openevolve.OpenEvolveConfig.Repository;
 import openevolve.mapelites.DefaultRepository;
 import openevolve.mapelites.listener.RepositoryListener.SolutionWriter;
+import openevolve.mapelites.listener.RepositoryListener;
 import openevolve.mapelites.listener.MAPElitesListener.StateWriter;
 import openevolve.mapelites.MAPElites;
 import openevolve.mapelites.Migration;
@@ -21,7 +23,8 @@ public class OpenEvolve {
 
 	public static MAPElites<EvolveSolution> create(OpenEvolveConfig config, ObjectMapper mapper,
 			boolean restart, List<EvolveSolution> initialSolutions,
-			Map<UUID, Solution<EvolveSolution>> allSolutions, RestClient.Builder restBuilder) {
+			Map<UUID, Solution<EvolveSolution>> allSolutions, RestClient.Builder restBuilder,
+			List<RepositoryListener<EvolveSolution>> listeners) {
 		var selConf = config.selection();
 		var random = selConf.random();
 		var bins = config.mapelites().bins();
@@ -46,6 +49,11 @@ public class OpenEvolve {
 			repository.restore(stateWriter.getCurrentState().repository(), allSolutions);
 		}
 		repository.addListener(new SolutionWriter<>(solutionsJson, mapper));
+		if (listeners != null && !listeners.isEmpty()) {
+			for (var l : listeners) {
+				repository.addListener(l);
+			}
+		}
 		var migration = new Migration<>(config.migration().interval(), config.migration().rate(),
 				repository);
 		var evaluator = new OpenEvolveEvaluator(config.solution().runner(),

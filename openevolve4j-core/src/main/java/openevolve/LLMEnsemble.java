@@ -11,15 +11,9 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
-import org.springframework.boot.http.client.reactive.ClientHttpConnectorBuilder;
-import org.springframework.boot.http.client.reactive.ClientHttpConnectorSettings;
 import org.springframework.retry.support.RetryTemplate;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.reactive.function.client.ExchangeStrategies;
-import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.reactive.function.client.WebClient.Builder;
 import openevolve.OpenEvolveConfig.LLM;
-import reactor.util.retry.Retry;
 
 /**
  * An ensemble of Large Language Model (LLM) chat clients that provides random sampling. This class
@@ -39,7 +33,7 @@ public class LLMEnsemble {
 			var chatModel =
 					OpenAiChatModel.builder().openAiApi(openAiApi.build())
 							.retryTemplate(RetryTemplate.builder()
-									.exponentialBackoff(Duration.ofSeconds(5), 2,
+									.exponentialBackoff(Duration.ofSeconds(10), 2,
 											Duration.ofSeconds(30))
 									.build())
 							.defaultOptions(config).build();
@@ -47,8 +41,9 @@ public class LLMEnsemble {
 		}
 	}
 
-	public ChatClient sample() {
-		return llms.get(keys[random.nextInt(keys.length)]);
+	public Map.Entry<String, ChatClient> sample() {
+		var key = keys[random.nextInt(keys.length)];
+		return Map.entry(key, llms.get(key));
 	}
 
 	public Iterator<ChatClient> iterator() {

@@ -52,12 +52,12 @@ public class OpenEvolveAgent extends BaseAgent implements Function<EvolveStep, E
 				taskTmpl, "parents", parentsBuilder.toString()));
 		var systemPrompt = systemMessageTmpl.createMessage();
 		String response = null;
-		response = client.prompt(new Prompt(systemPrompt, userPrompt)).call().content();
-		var llmRequest = List.of(
-			Map.of("system", systemPrompt.getText()),
-			Map.of("user", userPrompt.getText())
-		);
-		return newSolution(step, llmRequest, response);
+		response = client.getValue().prompt(new Prompt(systemPrompt, userPrompt)).call().content();
+		var llmRequest = List.of(Map.of("system", systemPrompt.getText()),
+				Map.of("user", userPrompt.getText()));
+		var metadata = Map.of("llmModel", client.getKey(), "llmRequest", llmRequest, "llmResponse",
+				response);
+		return newSolution(step.parent(), metadata);
 	}
 
 	private String renderSolution(Solution<EvolveSolution> solution, String name) {
