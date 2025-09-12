@@ -1,6 +1,5 @@
 package openevolve;
 
-import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -33,6 +32,7 @@ public class LLMEnsemble {
 			var chatModel =
 					OpenAiChatModel.builder().openAiApi(openAiApi.build())
 							.retryTemplate(RetryTemplate.builder()
+									.retryOn(Throwable.class)
 									.exponentialBackoff(Duration.ofSeconds(10), 2,
 											Duration.ofSeconds(30))
 									.build())
