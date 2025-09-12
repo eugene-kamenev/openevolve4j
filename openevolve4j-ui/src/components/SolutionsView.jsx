@@ -81,8 +81,11 @@ const SolutionsView = ({ config }) => {
   };
 
   const formatScore = (fitness) => {
-    if (!fitness || typeof fitness.score !== 'number') return '-';
-    return fitness.score.toFixed(3);
+    if (!fitness) return '-';
+    const metrics = config?.config?.metrics || {};
+    if (fitness.error) return 'Error';
+    const metricValues = Object.keys(metrics).map(key => fitness[key]);
+    return metricValues.map(v => (typeof v === 'number' ? v.toFixed(3) : v)).join(', ');
   };
 
   // Helper function to find a solution by ID
@@ -177,10 +180,18 @@ const SolutionsView = ({ config }) => {
           </div>
           <div className="stat-item">
             <div className="stat-value">
-              {configSolutions.length > 0 
-                ? formatScore({ score: Math.max(...configSolutions.map(s => s.fitness?.score || 0)) })
-                : '-'
-              }
+              {configSolutions.length > 0
+                ? (() => {
+                    // Find best solution by first metric
+                    const metricKey = Object.keys(config?.metrics || {})[0] || 'score';
+                    const best = configSolutions.reduce((best, s) => {
+                      const val = s.fitness?.[metricKey] ?? -Infinity;
+                      const bestVal = best?.fitness?.[metricKey] ?? -Infinity;
+                      return val > bestVal ? s : best;
+                    }, null);
+                    return best ? formatScore(best.fitness) : '-';
+                  })()
+                : '-'}
             </div>
             <div className="stat-label">Best Score</div>
           </div>
@@ -225,9 +236,8 @@ const SolutionsView = ({ config }) => {
                   </th>
                   <th 
                     className={`sortable ${sortField === 'score' ? sortDirection : ''}`}
-                    onClick={() => handleSort('score')}
                   >
-                    <TrendingUp size={14} /> Score
+                    <TrendingUp size={14} /> Score {config?.config?.metrics ? `(${Object.keys(config.config.metrics).join(', ')})` : ''}
                   </th>
                   <th 
                     className={`sortable ${sortField === 'islandId' ? sortDirection : ''}`}
@@ -259,7 +269,7 @@ const SolutionsView = ({ config }) => {
                         <span className="iteration-badge">{solution.iteration || 0}</span>
                       </td>
                       <td className="score">
-                        <span className="score-value">{JSON.stringify(solution.fitness)}</span>
+                        <span className="score-value">{formatScore(solution.fitness)}</span>
                       </td>
                       <td className="island">
                         <span className="island-badge">#{solution.islandId || 0}</span>
@@ -346,7 +356,6 @@ const SolutionsView = ({ config }) => {
                     {evolutionHistory.map((historySolution, index) => {
                       const isExpanded = expandedHistoryItems.has(historySolution.id);
                       const hasFiles = historySolution.solution?.files && Object.keys(historySolution.solution.files).length > 0;
-                      
                       return (
                         <div key={historySolution.id} className="history-item">
                           <div 
@@ -366,7 +375,6 @@ const SolutionsView = ({ config }) => {
                               <span className="history-score">Score: {formatScore(historySolution.fitness)}</span>
                             </div>
                           </div>
-                          
                           {isExpanded && hasFiles && (
                             <div className="history-files">
                               {Object.keys(historySolution.solution.files).map(filename => (
