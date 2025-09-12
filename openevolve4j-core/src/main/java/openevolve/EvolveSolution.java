@@ -5,10 +5,13 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import openevolve.util.InstantToTimestampSerializer;
 import openevolve.util.PathKeyDeserializer;
 
 public record EvolveSolution(
 		UUID parentId,
+		@JsonSerialize(using = InstantToTimestampSerializer.class)
 		Instant dateCreated,
 		@JsonDeserialize(keyUsing = PathKeyDeserializer.class)
 		Map<Path, String> files,
