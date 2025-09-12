@@ -429,7 +429,7 @@ const SolutionsView = ({ config }) => {
                               )}
                               <span className="history-generation">Gen {evolutionHistory.length - index}</span>
                               <code className="history-id">{historySolution.id?.substring(0, 8)}</code>
-                              <span className="history-score">Score: {formatScore(historySolution.fitness)}</span>
+                              <span className="history-score">Score: {formatScore(historySolution.fitness, config?.config?.metrics)}</span>
                             </div>
                           </div>
                           {isExpanded && hasFiles && (
