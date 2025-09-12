@@ -2,6 +2,7 @@ package openevolve.service;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +16,7 @@ import openevolve.Application;
 import openevolve.Constants;
 import openevolve.EvolveSolution;
 import openevolve.OpenEvolveConfig;
+import openevolve.mapelites.ParetoComparator;
 import openevolve.mapelites.Repository.Solution;
 import openevolve.util.Util;
 
@@ -56,6 +58,29 @@ public class ConfigService {
         return solutions.getOrDefault(id, List.of());
     }
 
+    @SuppressWarnings("unchecked")
+    public Solution<EvolveSolution> getBestSolution(String id) {
+        var config = configs.get(id);
+        var sols = solutions.getOrDefault(id, List.of());
+        if (sols.isEmpty() || config == null) {
+            return null;
+        }
+        var best = sols.get(0);
+        Comparator<Solution<EvolveSolution>> comparator = config.comparator();
+        for (var sol : sols) {
+            if (comparator instanceof ParetoComparator pareto) {
+                if (pareto.dominates(sol, best)) {
+                    best = sol;
+                }
+            } else {
+                if (comparator.compare(sol, best) > 0) {
+                    best = sol;
+                }
+            }
+        }
+        return best;
+    }
+ 
     public static Map<String, List<Solution<EvolveSolution>>> loadSolutions(Map<String, OpenEvolveConfig> configs) {
         Map<String, List<Solution<EvolveSolution>>> solutions = new HashMap<>();
         configs.entrySet().stream().forEach(entry -> {

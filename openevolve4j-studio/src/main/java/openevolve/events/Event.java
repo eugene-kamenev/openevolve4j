@@ -36,7 +36,7 @@ public record Event<T extends Event.Payload>(String id, T payload) {
 			implements Output {
 	}
 
-	public record Solutions(String id, List<Solution<EvolveSolution>> solutions) implements Output {
+	public record Solutions(String id, List<Solution<EvolveSolution>> solutions, UUID bestId) implements Output {
 	}
 
 	public record OutputEvolutionEvent<T extends EvolutionEvent>(String taskId, T event)
@@ -85,7 +85,7 @@ public record Event<T extends Event.Payload>(String id, T payload) {
 
 		@Override
 		public Mono<Solutions> get() {
-			return getBean(ConfigService.class).map(s -> new Solutions(id, s.getSolutions(id)));
+			return getBean(ConfigService.class).map(s -> new Solutions(id, s.getSolutions(id), s.getBestSolution(id).id()));
 		}
 
 		public String getId() {
