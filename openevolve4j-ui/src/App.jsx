@@ -16,6 +16,7 @@ function App() {
   const ws = useRef(WebSocketService.getInstance());
   const [configs, setConfigs] = useState([]);
   const [solutions, setSolutions] = useState({}); // Map of configId -> solutions array
+  const [bestSolutions, setBestSolutions] = useState({}); // Map of configId -> best solution
   const [statuses, setStatuses] = useState({}); // Map of configId -> status (RUNNING, NOT_RUNNING)
   const [wsStatus, setWsStatus] = useState('connecting'); // connecting | open | error
   const [selectedConfig, setSelectedConfig] = useState(null);
@@ -44,6 +45,17 @@ function App() {
           ...prev,
           [response.id]: response.solutions
         }));
+        
+        // Update best solution if bestId is provided
+        if (response.bestId) {
+          const bestSolution = response.solutions.find(sol => sol.id === response.bestId);
+          if (bestSolution) {
+            setBestSolutions(prev => ({
+              ...prev,
+              [response.id]: bestSolution
+            }));
+          }
+        }
       }
       return response;
     } catch (error) {
@@ -102,6 +114,12 @@ function App() {
 
       case 'NEW_BEST_SOLUTION':
         if (event.newBest) {
+          // Update best solution state
+          setBestSolutions(prev => ({
+            ...prev,
+            [taskId]: event.newBest
+          }));
+          
           setSolutions(prev => {
             const currentSolutions = prev[taskId] || [];
             const updatedSolutions = currentSolutions.map(s =>
@@ -349,6 +367,17 @@ function App() {
                 ...prev,
                 [p.id]: p.solutions
               }));
+              
+              // Update best solution if bestId is provided
+              if (p.bestId) {
+                const bestSolution = p.solutions.find(sol => sol.id === p.bestId);
+                if (bestSolution) {
+                  setBestSolutions(prev => ({
+                    ...prev,
+                    [p.id]: bestSolution
+                  }));
+                }
+              }
             }
             break;
         }
@@ -369,7 +398,7 @@ function App() {
   };
 
   return (
-    <ConfigContext.Provider value={{ configs, setConfigs, solutions, setSolutions, statuses, setStatuses, evolutionEvents, setEvolutionEvents, sendWsMessage, sendWsRequest, fetchSolutions }}>
+    <ConfigContext.Provider value={{ configs, setConfigs, solutions, setSolutions, bestSolutions, setBestSolutions, statuses, setStatuses, evolutionEvents, setEvolutionEvents, sendWsMessage, sendWsRequest, fetchSolutions }}>
       <div className="oe-app-layout">
         {/* Sidebar */}
         <aside className="oe-sidebar">

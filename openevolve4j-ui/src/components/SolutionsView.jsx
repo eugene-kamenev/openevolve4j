@@ -123,7 +123,6 @@ import {
   Clock, 
   TrendingUp, 
   Database, 
-  RefreshCw, 
   Eye, 
   Download,
   Hash,
@@ -135,10 +134,10 @@ import {
 } from 'lucide-react';
 import { ConfigContext } from '../App';
 import CodeEditor from './editor/CodeEditor';
+import { formatScore } from '../utils/formatters';
 
 const SolutionsView = ({ config }) => {
-  const { solutions, setSolutions, sendWsRequest, fetchSolutions } = useContext(ConfigContext);
-  const [loading, setLoading] = useState(false);
+  const { solutions, setSolutions, bestSolutions, sendWsRequest, fetchSolutions } = useContext(ConfigContext);
   const [selectedSolution, setSelectedSolution] = useState(null);
   const [sortField, setSortField] = useState('iteration');
   const [sortDirection, setSortDirection] = useState('desc');
@@ -148,19 +147,6 @@ const SolutionsView = ({ config }) => {
   const [showMetadataModal, setShowMetadataModal] = useState(false);
 
   const configSolutions = solutions[config?.id] || [];
-
-  const handleRefreshSolutions = async () => {
-    if (!config?.id) return;
-    
-    setLoading(true);
-    try {
-      await fetchSolutions(config.id);
-    } catch (error) {
-      console.error('Error fetching solutions:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -192,19 +178,13 @@ const SolutionsView = ({ config }) => {
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     try {
-      return new Date(dateString).toLocaleString();
+      return new Date(dateString / 1000).toLocaleString();
     } catch {
       return dateString;
     }
   };
 
-  const formatScore = (fitness) => {
-    if (!fitness) return '-';
-    const metrics = config?.config?.metrics || {};
-    if (fitness.error) return 'Error';
-    const metricValues = Object.keys(metrics).map(key => fitness[key]);
-    return metricValues.map(v => (typeof v === 'number' ? v.toFixed(3) : v)).join(', ');
-  };
+  // use shared formatScore util
 
   // Helper function to find a solution by ID
   const findSolutionById = (id) => {
@@ -272,16 +252,6 @@ const SolutionsView = ({ config }) => {
               Evolution history for <span className="text-accent">{config?.name}</span>
             </p>
           </div>
-          <div className="header-actions">
-            <button 
-              className="oe-btn outline" 
-              onClick={handleRefreshSolutions}
-              disabled={loading}
-            >
-              <RefreshCw size={16} className={loading ? 'spinning' : ''} />
-              Refresh
-            </button>
-          </div>
         </div>
 
         {/* Quick Stats */}
@@ -292,18 +262,15 @@ const SolutionsView = ({ config }) => {
           </div>
           <div className="stat-item">
             <div className="stat-value">
-              {configSolutions.length > 0
-                ? (() => {
-                    // Find best solution by first metric
-                    const metricKey = Object.keys(config?.metrics || {})[0] || 'score';
-                    const best = configSolutions.reduce((best, s) => {
-                      const val = s.fitness?.[metricKey] ?? -Infinity;
-                      const bestVal = best?.fitness?.[metricKey] ?? -Infinity;
-                      return val > bestVal ? s : best;
-                    }, null);
-                    return best ? formatScore(best.fitness) : '-';
-                  })()
-                : '-'}
+              {(() => {
+                const bestSolution = bestSolutions[config?.id];
+                if (bestSolution) {
+                  const shortId = bestSolution.id?.substring(0, 8) || 'unknown';
+                  const score = formatScore(bestSolution.fitness, config?.config?.metrics);
+                  return `${shortId}: ${score}`;
+                }
+                return configSolutions.length > 0 ? 'No best solution set' : '-';
+              })()}
             </div>
             <div className="stat-label">Best Score</div>
           </div>
@@ -312,12 +279,7 @@ const SolutionsView = ({ config }) => {
 
       {/* Solutions Table */}
       <div className="solutions-table-container">
-        {loading && configSolutions.length === 0 ? (
-          <div className="loading-state">
-            <RefreshCw size={20} className="spinning" />
-            <span>Loading solutions...</span>
-          </div>
-        ) : configSolutions.length === 0 ? (
+        {configSolutions.length === 0 ? (
           <div className="empty-state">
             <Database size={48} />
             <h4>No Solutions Yet</h4>
@@ -360,7 +322,7 @@ const SolutionsView = ({ config }) => {
                         <code>{solution.id?.substring(0, 8) || '-'}</code>
                       </td>
                       <td className="score">
-                        <span className="score-value">{formatScore(solution.fitness)}</span>
+                        <span className="score-value">{formatScore(solution.fitness, config.config.metrics)}</span>
                       </td>
                       <td className="created">
                         <span className="date-text">

@@ -15,17 +15,38 @@ import {
   X
 } from 'lucide-react';
 import { ConfigContext } from '../App';
+import { formatScore } from '../utils/formatters';
 
 const EvolutionView = ({ config }) => {
   const { solutions, setSolutions, statuses, setStatuses, evolutionEvents, sendWsRequest, fetchSolutions } = useContext(ConfigContext);
-  const [evolutionType, setEvolutionType] = useState('restart');
+  const configSolutions = solutions[config?.id] || [];
+  const [evolutionType, setEvolutionType] = useState(configSolutions.length > 0 ? 'continue' : 'restart');
   const [selectedSolutions, setSelectedSolutions] = useState([]);
   const [showCustomModal, setShowCustomModal] = useState(false);
-
-  const configSolutions = solutions[config?.id] || [];
+  const [currentIteration, setCurrentIteration] = useState(0);
   const configEvents = evolutionEvents[config?.id] || [];
   const configStatus = statuses[config?.id] || 'NOT_RUNNING'; // Get status from backend
   const isRunning = configStatus === 'RUNNING';
+  
+  // Update current iteration from ITERATION_DONE events
+  useEffect(() => {
+    if (configEvents.length > 0) {
+      const lastIterationEvent = configEvents
+        .filter(event => event.type === 'ITERATION_DONE')
+        .slice(-1)[0];
+      
+      if (lastIterationEvent && lastIterationEvent.iteration !== undefined) {
+        setCurrentIteration(lastIterationEvent.iteration);
+      }
+    }
+  }, [configEvents]);
+  
+  // Reset iteration when evolution starts
+  useEffect(() => {
+    if (isRunning) {
+      setCurrentIteration(0);
+    }
+  }, [isRunning]);
   
   // Filter solutions that can be used as initial solutions (have valid files)
   const viableSolutions = configSolutions.filter(solution => 
@@ -178,7 +199,7 @@ const EvolutionView = ({ config }) => {
       case 'SOLUTION_ADDED':
         return {
           ...baseInfo,
-          message: `New solution added: ${event.solution?.id?.substring(0, 8) || 'unknown'} (Score: ${event.solution?.fitness?.score?.toFixed(3) || 'N/A'})`
+          message: `New solution added: ${event.solution?.id?.substring(0, 8) || 'unknown'} (fitness: ${event.solution?.fitness || 'N/A'})`
         };
       case 'SOLUTION_REMOVED':
         return {
@@ -189,19 +210,19 @@ const EvolutionView = ({ config }) => {
         return {
           ...baseInfo,
           level: 'success',
-          message: `Cell improved! New: ${event.newSolution?.fitness?.score?.toFixed(3) || 'N/A'} (was: ${event.previousSolution?.fitness?.score?.toFixed(3) || 'N/A'}) - Iteration ${event.iteration || 'N/A'}`
+          message: `Cell improved! New: ${event.newSolution?.fitness || 'N/A'} (was: ${event.previousSolution?.fitness || 'N/A'}) - Iteration ${event.iteration || 'N/A'}`
         };
       case 'CELL_REJECTED':
         return {
           ...baseInfo,
           level: 'warn',
-          message: `Cell rejected: ${event.candidateSolution?.fitness?.score?.toFixed(3) || 'N/A'} vs existing ${event.existingSolution?.fitness?.score?.toFixed(3) || 'N/A'} - Iteration ${event.iteration || 'N/A'}`
+          message: `Cell rejected: ${event.candidateSolution?.fitness || 'N/A'} vs existing ${event.existingSolution?.fitness || 'N/A'} - Iteration ${event.iteration || 'N/A'}`
         };
       case 'NEW_BEST_SOLUTION':
         return {
           ...baseInfo,
           level: 'success',
-          message: `🎉 NEW BEST SOLUTION! Score: ${event.newBest?.fitness?.score?.toFixed(3) || 'N/A'} (was: ${event.previousBest?.fitness?.score?.toFixed(3) || 'N/A'}) - Iteration ${event.iteration || 'N/A'}`
+          message: `🎉 NEW BEST SOLUTION! Fitness: ${event.newBest?.fitness || 'N/A'} (was: ${event.previousBest?.fitness || 'N/A'}) - Iteration ${event.iteration || 'N/A'}`
         };
       case 'ERROR':
         return {
@@ -237,33 +258,6 @@ const EvolutionView = ({ config }) => {
               {getStatusIcon()}
               <span>Status: {getStatusText()}</span>
             </div>
-          </div>
-        </div>
-
-        {/* Quick Stats */}
-        <div className="evolution-stats">
-          <div className="stat-item">
-            <div className="stat-value">{configSolutions.length}</div>
-            <div className="stat-label">Total Solutions</div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-value">{viableSolutions.length}</div>
-            <div className="stat-label">Viable Solutions</div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-value">
-              {configSolutions.length > 0 ? Math.max(...configSolutions.map(s => s.iteration || 0)) : 0}
-            </div>
-            <div className="stat-label">Current Iteration</div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-value">
-              {configSolutions.length > 0 
-                ? Math.max(...configSolutions.map(s => s.fitness?.score || 0)).toFixed(3)
-                : '-'
-              }
-            </div>
-            <div className="stat-label">Best Score</div>
           </div>
         </div>
       </div>
@@ -356,6 +350,44 @@ const EvolutionView = ({ config }) => {
               </button>
             )}
           </div>
+
+          {/* Progress Bar */}
+          {config?.config?.mapelites?.numIterations && (
+            <div className="evolution-progress">
+              <div className="progress-header">
+                <div className="progress-info">
+                  <TrendingUp size={16} />
+                  <span>Progress</span>
+                </div>
+                <div className="progress-stats">
+                  <span className="current-iteration">{currentIteration}</span>
+                  <span className="separator">/</span>
+                  <span className="total-iterations">{config.config.mapelites.numIterations}</span>
+                  <span className="progress-percentage">
+                    ({Math.round((currentIteration / config.config.mapelites.numIterations) * 100)}%)
+                  </span>
+                </div>
+              </div>
+              <div className="progress-bar-container">
+                <div 
+                  className="progress-bar-fill"
+                  style={{
+                    width: `${Math.min((currentIteration / config.config.mapelites.numIterations) * 100, 100)}%`,
+                    backgroundColor: isRunning ? '#22c55e' : '#94a3b8',
+                    transition: 'width 0.3s ease-in-out'
+                  }}
+                />
+              </div>
+              <div className="progress-time">
+                <Clock size={14} />
+                <span>
+                  {isRunning ? 'Running...' : 
+                   currentIteration === config.config.mapelites.numIterations ? 'Completed' : 
+                   currentIteration > 0 ? 'Paused' : 'Ready to start'}
+                </span>
+              </div>
+            </div>
+          )}
           
           {/* Validation Messages */}
           {evolutionType === 'continue' && configSolutions.length === 0 && (
@@ -443,7 +475,7 @@ const EvolutionView = ({ config }) => {
                         <code className="solution-id">{solution.id?.substring(0, 8)}</code>
                         <span className="solution-iteration">Iteration {solution.iteration || 0}</span>
                         <span className="solution-score">
-                          Score: {solution.fitness?.score?.toFixed(3) || '-'}
+                          Score: {formatScore(solution.fitness, config?.config?.metrics)}
                         </span>
                       </div>
                     </div>
