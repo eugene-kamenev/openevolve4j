@@ -1,6 +1,13 @@
 // Enhanced JSON viewer component with expandable keys
-const MetadataViewer = ({ data, level = 0, name = null }) => {
-  const [expandedKeys, setExpandedKeys] = useState(new Set());
+const MetadataViewer = ({ data, level = 0 }) => {
+  const [expandedKeys, setExpandedKeys] = useState(() => {
+    // Initialize with first-level keys expanded
+    const initialExpanded = new Set();
+    if (level === 0 && data && typeof data === 'object' && !Array.isArray(data)) {
+      initialExpanded.add('root');
+    }
+    return initialExpanded;
+  });
   
   const toggleKey = (key) => {
     const newExpanded = new Set(expandedKeys);
@@ -111,8 +118,7 @@ const MetadataViewer = ({ data, level = 0, name = null }) => {
 
   return (
     <div className="json-viewer" style={{ '--level': level }}>
-      {name && <div className="json-root-name">{name}</div>}
-      {renderValue(data, name || 'root')}
+      {renderValue(data, 'root')}
     </div>
   );
 };
@@ -552,7 +558,7 @@ const SolutionsView = ({ config }) => {
             </div>
             <div className="diff-modal-content">
               <div className="metadata-modal-content">
-                <MetadataViewer data={selectedSolution.solution?.metadata} name="metadata" />
+                <MetadataViewer data={selectedSolution.solution?.metadata} />
               </div>
             </div>
           </div>

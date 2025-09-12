@@ -199,7 +199,7 @@ const EvolutionView = ({ config }) => {
       case 'SOLUTION_ADDED':
         return {
           ...baseInfo,
-          message: `New solution added: ${event.solution?.id?.substring(0, 8) || 'unknown'} (fitness: ${event.solution?.fitness || 'N/A'})`
+          message: `New solution added: ${event.solution?.id?.substring(0, 8) || 'unknown'} (fitness: ${formatScore(event.solution?.fitness, config?.config?.metrics) || 'N/A'})`
         };
       case 'SOLUTION_REMOVED':
         return {
@@ -210,19 +210,19 @@ const EvolutionView = ({ config }) => {
         return {
           ...baseInfo,
           level: 'success',
-          message: `Cell improved! New: ${event.newSolution?.fitness || 'N/A'} (was: ${event.previousSolution?.fitness || 'N/A'}) - Iteration ${event.iteration || 'N/A'}`
+          message: `Cell improved! New: ${formatScore(event.newSolution?.fitness, config?.config?.metrics) || 'N/A'} (was: ${formatScore(event.previousSolution?.fitness, config?.config?.metrics) || 'N/A'}) - Iteration ${event.iteration || 'N/A'}`
         };
       case 'CELL_REJECTED':
         return {
           ...baseInfo,
           level: 'warn',
-          message: `Cell rejected: ${event.candidateSolution?.fitness || 'N/A'} vs existing ${event.existingSolution?.fitness || 'N/A'} - Iteration ${event.iteration || 'N/A'}`
+          message: `Cell rejected: ${formatScore(event.candidateSolution?.fitness, config?.config?.metrics) || 'N/A'} vs existing ${formatScore(event.existingSolution?.fitness, config?.config?.metrics) || 'N/A'} - Iteration ${event.iteration || 'N/A'}`
         };
       case 'NEW_BEST_SOLUTION':
         return {
           ...baseInfo,
           level: 'success',
-          message: `🎉 NEW BEST SOLUTION! Fitness: ${event.newBest?.fitness || 'N/A'} (was: ${event.previousBest?.fitness || 'N/A'}) - Iteration ${event.iteration || 'N/A'}`
+          message: `🎉 NEW BEST SOLUTION! Fitness: ${formatScore(event.newBest?.fitness, config?.config?.metrics) || 'N/A'} (was: ${formatScore(event.previousBest?.fitness, config?.config?.metrics) || 'N/A'}) - Iteration ${event.iteration || 'N/A'}`
         };
       case 'ERROR':
         return {
