@@ -32,7 +32,7 @@ public class LLMEnsemble {
 			var chatModel =
 					OpenAiChatModel.builder().openAiApi(openAiApi.build())
 							.retryTemplate(RetryTemplate.builder()
-									.retryOn(t -> !(t instanceof InterruptedException))
+									.retryOn(Throwable.class)
 									.exponentialBackoff(Duration.ofSeconds(10), 2,
 											Duration.ofSeconds(30))
 									.build())

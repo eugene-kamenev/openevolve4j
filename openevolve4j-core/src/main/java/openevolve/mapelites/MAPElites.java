@@ -116,6 +116,10 @@ public class MAPElites<T> {
 
 		for (; currentIteration <= iterations && !shouldStop(); currentIteration++) {
 			try {
+				if (Thread.currentThread().isInterrupted()) {
+					LOG.warn("Thread interrupted, stopping MAP-Elites run at iteration {}", currentIteration);
+					break;
+				}
 				var island = repository.nextIsland();
 				LOG.trace("Beginning iteration {} on island {}", currentIteration, island.id());
 				Listener.callAll(listeners,

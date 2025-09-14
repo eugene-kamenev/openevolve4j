@@ -29,14 +29,21 @@ public class OpenEvolveAgent extends BaseAgent implements Function<EvolveStep, E
 				.flatMap(Function.identity()).distinct().toList();
 		var prompt = generatePrompt(step.parent(), inspirations);
 		String response = null;
-		log.debug("Doint request to LLM model", client.getKey());
+		if (log.isTraceEnabled()) {
+			log.trace("Doing request to LLM model", client.getKey());
+		}
 		response = client.getValue().prompt(prompt).call().content();
 		var llmRequest = promptToMap(prompt);
 		var metadata = Map.of("llmModel", client.getKey(), "llmRequest", llmRequest, "llmResponse",
 				response);
-		log.debug("LLM model {} request done", client.getKey());
+		if (log.isTraceEnabled()) {
+			log.trace("LLM model {} request done", client.getKey());
+		}
 		var newSolution = this.newSolution(step.parent(), metadata);
-		log.debug("LLM model {} produced solution", client.getKey());
+		if (log.isTraceEnabled()) {
+			log.trace("Parsing LLM model {} response", client.getKey());
+		}
+		log.trace("LLM model {} produced solution", client.getKey());
 		if (newSolution == null) {
 			log.error("Failed to parse LLM ({} ) response: {}", client.getKey(), metadata);
 			return null;

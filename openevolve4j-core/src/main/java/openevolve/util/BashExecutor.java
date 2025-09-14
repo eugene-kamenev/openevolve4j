@@ -48,21 +48,22 @@ public final class BashExecutor {
 		int exitCode;
 
 		if (!finished) {
-			// Timed out: forcefully kill and mark result
-			process.destroyForcibly();
+			// Timed out: ensure process is definitely killed
+			exitCode = ensureProcessKilled(process);
 			// Interrupt gobbler threads to unblock them
 			outThread.interrupt();
 			errThread.interrupt();
-			exitCode = -1;
 		} else {
 			exitCode = process.exitValue();
 		}
 
 		// Ensure gobblers finish with timeout to prevent indefinite blocking
-		long remainingTimeoutMs = Math.max(1000, timeout.toMillis() / 10); // Give threads 10% of original timeout or 1 second minimum
+		long remainingTimeoutMs = Math.max(1000, timeout.toMillis() / 10); // Give threads 10% of
+																			// original timeout or 1
+																			// second minimum
 		outThread.join(remainingTimeoutMs);
 		errThread.join(remainingTimeoutMs);
-		
+
 		// Force interrupt if threads are still alive
 		if (outThread.isAlive()) {
 			outThread.interrupt();
@@ -116,11 +117,11 @@ public final class BashExecutor {
 		int exitCode;
 
 		if (!finished) {
-			process.destroyForcibly();
+			// Timed out: ensure process is definitely killed
+			exitCode = ensureProcessKilled(process);
 			// Interrupt gobbler threads to unblock them
 			outThread.interrupt();
 			errThread.interrupt();
-			exitCode = -1;
 		} else {
 			exitCode = process.exitValue();
 		}
@@ -129,7 +130,7 @@ public final class BashExecutor {
 		long remainingTimeoutMs = Math.max(1000, timeout.toMillis() / 10);
 		outThread.join(remainingTimeoutMs);
 		errThread.join(remainingTimeoutMs);
-		
+
 		// Force interrupt if threads are still alive
 		if (outThread.isAlive()) {
 			outThread.interrupt();
@@ -144,12 +145,44 @@ public final class BashExecutor {
 				Duration.between(start, end), !finished);
 	}
 
+	/**
+	 * Ensures a process is definitely killed, with retry logic and verification.
+	 *
+	 * @param process the process to kill
+	 * @return exit code (-1 for timeout)
+	 */
+	private static int ensureProcessKilled(Process process) {
+		ProcessHandle handle = process.toHandle();
+
+		// First, kill all descendants
+		handle.descendants().forEach(ph -> {
+			try {
+				ph.destroyForcibly();
+			} catch (Exception ignored) {
+			}
+		});
+
+		// Then kill the parent itself
+		handle.destroyForcibly();
+
+		try {
+			if (process.waitFor(2, TimeUnit.SECONDS)) {
+				return process.exitValue();
+			}
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+		}
+
+		return -1; // Indicate timeout/forced kill
+	}
+
 	private static List<String> buildShellCommand(String command) {
 		return Arrays.asList(detectShellExecutable(), "-lc", command);
 	}
 
 	private static String detectShellExecutable() {
-		return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win") ? "bash" : "/bin/bash";
+		return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win") ? "bash"
+				: "/bin/bash";
 	}
 
 	private static Thread gobble(InputStream stream, StringBuilder sink, Charset charset) {
@@ -165,28 +198,29 @@ public final class BashExecutor {
 		}, "stream-gobbler-" + UUID.randomUUID());
 	}
 
-	public record ExecResult(
-		String stdout,
-		String stderr,
-		int exitCode,
-		Duration duration,
-		boolean timedOut
-	) {
-		public Map<String, Object> extractMetrics(ObjectMapper mapper, Collection<String> metricNames) {
+	public record ExecResult(String stdout, String stderr, int exitCode, Duration duration,
+			boolean timedOut) {
+		public Map<String, Object> extractMetrics(ObjectMapper mapper,
+				Collection<String> metricNames) {
 			if (timedOut()) {
 				var errorMessage = "Bash script timed out";
 				return Map.of(Constants.COMBINED_SCORE, 0.0, "error", errorMessage);
 			}
 			if (exitCode() != 0) {
-				var errorMessage = stderr() != null ? stderr() : "Bash script failed with exit code " + exitCode();
+				var errorMessage = stderr() != null ? stderr()
+						: "Bash script failed with exit code " + exitCode();
 				return Map.of(Constants.COMBINED_SCORE, 0.0, "error", errorMessage);
 			}
 			if (stdout() == null || stdout().isEmpty()) {
 				var errorMessage = "Bash script did not produce any output";
 				return Map.of(Constants.COMBINED_SCORE, 0.0, "error", errorMessage);
 			}
-			Map<String, Object> metrics = Util.parseJSON(stdout(), mapper, Constants.MAP_TYPE_REF, (m) -> m.keySet().stream().filter(name -> metricNames.contains(name)).findFirst().isPresent());
-			return metrics != null ? metrics : Map.of(Constants.COMBINED_SCORE, 0.0, "error", "No valid metrics found in output");
+			Map<String, Object> metrics = Util.parseJSON(stdout(), mapper, Constants.MAP_TYPE_REF,
+					(m) -> m.keySet().stream().filter(name -> metricNames.contains(name))
+							.findFirst().isPresent());
+			return metrics != null ? metrics
+					: Map.of(Constants.COMBINED_SCORE, 0.0, "error",
+							"No valid metrics found in output");
 		}
 	}
 }
