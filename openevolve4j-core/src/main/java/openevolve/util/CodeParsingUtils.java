@@ -36,12 +36,14 @@ public class CodeParsingUtils {
     public static class DiffBlock {
         private final String searchText;
         private final String replaceText;
+        private final String file;
 
-        public DiffBlock(String searchText, String replaceText) {
+        public DiffBlock(String file, String searchText, String replaceText) {
+            this.file = file;
             this.searchText = searchText;
             this.replaceText = replaceText;
         }
-
+        public String getFile() { return file; }
         public String getSearchText() { return searchText; }
         public String getReplaceText() { return replaceText; }
     }
@@ -85,15 +87,15 @@ public class CodeParsingUtils {
      * @param diffText Diff in the SEARCH/REPLACE format
      * @return Modified code
      */
-    public static String applyDiff(String originalCode, String diffText) {
+    public static String applyDiff(String originalCode, List<DiffBlock> diffBlocks) {
+        if (diffBlocks == null || diffBlocks.isEmpty()) {
+            return originalCode;
+        }
         String[] originalLines = originalCode.split("\n");
         List<String> resultLines = new ArrayList<>();
         for (String line : originalLines) {
             resultLines.add(line);
         }
-
-        List<DiffBlock> diffBlocks = extractDiffs(diffText);
-
         for (DiffBlock diffBlock : diffBlocks) {
             String[] searchLines = diffBlock.getSearchText().split("\n");
             String[] replaceLines = diffBlock.getReplaceText().split("\n");
@@ -130,19 +132,20 @@ public class CodeParsingUtils {
      * @param diffText Diff in the SEARCH/REPLACE format
      * @return List of diff blocks
      */
-    public static List<DiffBlock> extractDiffs(String diffText) {
+    public static List<DiffBlock> extractChanges(String llmResponse, List<String> paths) {
         List<DiffBlock> diffBlocks = new ArrayList<>();
-        
+        String pathString = "(" + String.join("|", paths) + ")";
         Pattern diffPattern = Pattern.compile(
-            "<<<<<<< SEARCH\\n(.*?)=======\\n(.*?)>>>>>>> REPLACE",
+            pathString + "\\s*<<<<<<<\\s*SEARCH\\s*\\n(.*?)=======\\n(.*?)>>>>>>>\\s*REPLACE",
             Pattern.DOTALL
         );
         
-        Matcher matcher = diffPattern.matcher(diffText);
+        Matcher matcher = diffPattern.matcher(llmResponse);
         while (matcher.find()) {
-            String searchText = matcher.group(1).replaceAll("\\s+$", "");
-            String replaceText = matcher.group(2).replaceAll("\\s+$", "");
-            diffBlocks.add(new DiffBlock(searchText, replaceText));
+            String file = matcher.group(1);
+            String searchText = matcher.group(2).replaceAll("\\s+$", "");
+            String replaceText = matcher.group(3).replaceAll("\\s+$", "");
+            diffBlocks.add(new DiffBlock(file, searchText, replaceText));
         }
 
         return diffBlocks;

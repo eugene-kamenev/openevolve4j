@@ -30,6 +30,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
@@ -48,7 +49,6 @@ public final class Constants {
 	public static final String SYSTEM_DEFAULT = "system_default";
 	public static final String USER_DIFF = "user_diff";
 	public static final String TASK = "task";
-	public static final String SOLUTION = "solution";
 	public static final String USER_FULL_REWRITE = "user_full_rewrite";
 
 	public static final TypeReference<Map<String, Object>> MAP_TYPE_REF =
@@ -60,7 +60,7 @@ public final class Constants {
 	public static final Predicate<? super Map<?, ?>> EMPTY_CHECK = m -> m == null || m.isEmpty();
 
 	public static final Map<String, List<PromptTemplate>> DEFAULT_PROMPTS = List
-			.of(SYSTEM_DEFAULT, USER_DIFF, USER_FULL_REWRITE, TASK, SOLUTION)
+			.of(SYSTEM_DEFAULT, USER_DIFF, USER_FULL_REWRITE, TASK)
 			.stream().collect(Collectors.toMap(Function.identity(), name -> List.of(new PromptTemplate(
 					new ClassPathResource("/openevolve/prompts/" + name + ".md")))));
 
@@ -68,6 +68,10 @@ public final class Constants {
 			new YAMLMapper().enable(SerializationFeature.INDENT_OUTPUT).findAndRegisterModules()
 					.registerModule(new JavaTimeModule()).registerModule(pathDeserializerModule())
 					.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+	public static final XmlMapper XML_MAPPER = XmlMapper.builder()
+   		.defaultUseWrapper(false)
+   		.build();
 
 	public static final ObjectMapper OBJECT_MAPPER =
 			JsonMapper.builder().findAndAddModules()

@@ -32,11 +32,7 @@ public class OpenEvolveFunction
 		if (t.size() > 1) {
 			inspirations.addAll(t.subList(1, t.size()));
 		}
-		var islandSolutions = repository.findByIslandId(parent.islandId());
-		var islandTopSolutions = islandSolutions.stream()
-				.limit(numberDiverseSolutions + numberTopSolutions).toList();
-		var islandPreviousSolutions = islandSolutions.stream().limit(numberTopSolutions).toList();
 		return evolveFunction.apply(
-				new EvolveStep(parent, inspirations, islandPreviousSolutions, islandTopSolutions));
+				new EvolveStep(parent, inspirations, List.of(), List.of()));
 	}
 }

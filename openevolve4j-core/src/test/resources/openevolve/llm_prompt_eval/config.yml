@@ -3,10 +3,10 @@ llm:
   apiUrl: "http://192.168.50.99:4000"
   apiKey: "sk-9DzvwVXmpXKAcoWTgmZnRg"
   models:
-    - model: "qwen3-4b"
-      temperature: 0.8
     - model: "qwen3-4b-thinking"
       temperature: 0.7
+    - model: "gpt-oss-20b"
+      temperature: 0.6
 solution:
   path: solution
   runner: run.sh
@@ -19,7 +19,7 @@ selection:
   explorationRatio: 0.1
   exploitationRatio: 0.3
   eliteSelectionRatio: 0.6
-  numInspirations: 1
+  numInspirations: 4
   numberDiverse: 2
   numberTop: 3
 migration:
@@ -27,11 +27,11 @@ migration:
   interval: 10
 repository:
   checkpointInterval: 10
-  populationSize: 1000
-  archiveSize: 100
-  islands: 4
+  populationSize: 20
+  archiveSize: 10
+  islands: 3
 mapelites:
-  numIterations: 100
+  numIterations: 50
   bins: 10
   dimensions:
     - prompt_length

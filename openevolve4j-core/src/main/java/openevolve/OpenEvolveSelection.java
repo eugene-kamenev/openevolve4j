@@ -40,11 +40,23 @@ public class OpenEvolveSelection
 	@Override
 	public List<Solution<EvolveSolution>> apply(Island t) {
 		var parent = sampleParent(t);
-		var inspirations = sampleInspirations(parent, numInspirations);
-		var combined = new ArrayList<Solution<EvolveSolution>>(inspirations.size() + 1);
-		combined.add(0, parent);
-		combined.addAll(inspirations);
-		return combined;
+		var inspirations = new ArrayList<Solution<EvolveSolution>>();
+        inspirations.add(parent);
+        var parentId = parent.solution().parentId();
+        while (parentId != null) {
+            var p = repository.findById(parentId);
+            if (p != null) {
+                inspirations.add(p);
+                parentId = p.solution().parentId();
+            } else {
+                break;
+            }
+            if (inspirations.size() >= numInspirations) {
+                break;
+            }
+        }
+		
+		return inspirations;
 	}
 
 	protected Solution<EvolveSolution> sampleParent(Island t) {

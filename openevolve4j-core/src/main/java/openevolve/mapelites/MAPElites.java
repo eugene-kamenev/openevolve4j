@@ -94,28 +94,37 @@ public class MAPElites<T> {
 	}
 
 	public void run(int iterations) {
+		LOG.trace("run called with iterations={} starting from currentIteration={}", iterations, currentIteration);
 		if (!initialized) {
 			Listener.callAll(listeners, listener -> listener.onAlgorithmStart(this));
+			LOG.trace("Initializing archive with initial solutions generator");
 			var initial = initialSolutionGenerator.get();
+			LOG.trace("Generated {} initial solutions", initial.size());
 			for (int i = 0; i < initial.size(); i++) {
-				addSolution(initial.get(i), repository.findIslandById(i), 0);
+				var island = repository.findIslandById(i);
+				LOG.trace("Adding initial solution index={} to island={}", i, island != null ? island.id() : null);
+				addSolution(initial.get(i), island, 0);
 			}
 			if (repository.count() == 0) {
+				LOG.trace("No initial solutions were added to any archive - repository.count()==0");
 				throw new IllegalStateException(
 						"Error: No initial solutions were added to any archive");
 			}
 			initialized = true;
+			LOG.trace("Initialization complete - repository.count()={}", repository.count());
 		}
 
 		for (; currentIteration <= iterations && !shouldStop(); currentIteration++) {
 			try {
 				var island = repository.nextIsland();
+				LOG.trace("Beginning iteration {} on island {}", currentIteration, island.id());
 				Listener.callAll(listeners,
 						listener -> listener.onBeforeIteration(island, currentIteration, this));
 				evolveIsland(island, currentIteration);
 				migration.migrateSolutions(island, currentIteration);
 				Listener.callAll(listeners,
 						listener -> listener.onAfterIteration(island, currentIteration, this));
+				LOG.trace("Finished iteration {} on island {}", currentIteration, island.id());
 			} catch (Throwable t) {
 				LOG.error("Error occurred during MAP-Elites iteration", t);
 			}
@@ -123,12 +132,15 @@ public class MAPElites<T> {
 	}
 
 	public void reset(Map<String, Cell> grid, Map<String, FeatureScaler> featureStats, int iteration) {
+		LOG.trace("Resetting MAP-Elites state to iteration={} (clearing grid and featureStats)", iteration);
 		this.grid.clear();
 		this.grid.putAll(grid);
 		this.featureStats.clear();
 		this.featureStats.putAll(featureStats);
 		this.currentIteration = iteration;
 		this.initialized = true;
+		LOG.trace("Reset complete: grid.size={} featureStats.size={} currentIteration={}",
+				this.grid.size(), this.featureStats.size(), this.currentIteration);
 	}
 
 	public Map<String, Cell> getGrid() {
@@ -144,6 +156,7 @@ public class MAPElites<T> {
 	}
 
 	public int[] calculateFeatureCoords(T evolved, Map<String, Object> fitness) {
+		LOG.trace("Calculating feature coordinates for evolved candidate");
 		int[] coords = new int[featureDimensions.size()];
 		for (int i = 0; i < featureDimensions.size(); i++) {
 			String dim = featureDimensions.get(i);
@@ -151,11 +164,13 @@ public class MAPElites<T> {
 			int binIndex = calculateBinIndex(dim, featureValue, featureBins);
 			coords[i] = binIndex;
 		}
+		LOG.trace("Calculated feature coords: {}", Arrays.toString(coords));
 		return coords;
 	}
 
 	public boolean addToGrid(Solution<T> newSolution) {
 		var coords = newSolution.cellId();
+		LOG.trace("Attempting to add solution id={} to cell={}", newSolution.id(), coords);
 		var cell = grid.get(coords);
 		var currentId = cell != null ? cell.solutionId() : null;
 		var current = currentId != null ? repository.findById(currentId) : null;
@@ -168,6 +183,7 @@ public class MAPElites<T> {
 					cell != null ? cell.curiosity() : 0.0, newSolution.iteration(),
 					newSolution.id());
 			grid.put(coords, newCell);
+			LOG.trace("Cell {} improved by solution id={}", coords, newSolution.id());
 			Listener.callAll(listeners, listener -> listener.onCellImproved(newSolution, current, newCell,
 					newSolution.iteration()));
 			return true;
@@ -175,8 +191,11 @@ public class MAPElites<T> {
 			var updatedCell = new Cell(cell.key(), cell.trials() + 1, cell.curiosity(),
 					cell.improveIter(), cell.solutionId());
 			grid.put(coords, updatedCell);
+			LOG.trace("Cell {} rejected new solution id={} (current solution id={})", coords, newSolution.id(), currentId);
 			Listener.callAll(listeners, listener -> listener.onCellRejected(newSolution, current, updatedCell,
 					newSolution.iteration()));
+		} else {
+			LOG.trace("No cell existed for coords {} and solution id={} did not improve", coords, newSolution.id());
 		}
 		return false;
 	}
@@ -191,27 +210,37 @@ public class MAPElites<T> {
 
 	protected int calculateBinIndex(String dim, double featureValue, int defaultBins) {
 		if (Constants.DIVERSITY.equals(dim) && repository.count() < 2) {
+			LOG.trace("Dimension {} uses diversity but repository count < 2, returning bin 0", dim);
 			return 0;
 		}
 		double scaledValue = scaleFeature(dim, featureValue);
 		int numBins = featureBinsPerDim.getOrDefault(dim, defaultBins);
-		int idx = (int) (scaledValue * numBins);
-		return Math.max(0, Math.min(numBins - 1, idx));
+		int rawIdx = (int) (scaledValue * numBins);
+		int clamped = Math.max(0, Math.min(numBins - 1, rawIdx));
+		LOG.trace("calculateBinIndex dim={} value={} scaled={} bins={} rawIdx={} clampedIdx={}",
+				dim, featureValue, scaledValue, numBins, rawIdx, clamped);
+		return clamped;
 	}
 
 	protected double scaleFeature(String feature, double value) {
 		FeatureScaler scaler =
 				featureStats.computeIfAbsent(feature, _ -> new FeatureScaler(featureScaleMethod)).apply(value);
 		featureStats.put(feature, scaler);
-		return scaler.scaled(value);
+		double scaled = scaler.scaled(value);
+		LOG.trace("scaleFeature feature={} rawValue={} scaledValue={}", feature, value, scaled);
+		return scaled;
 	}
 
 	private boolean shouldStop() {
-		return stopCondition.test(repository.best());
+		boolean stop = stopCondition.test(repository.best());
+		LOG.trace("shouldStop evaluated to {} (bestId={})", stop,
+				repository.best() != null ? repository.best().id() : null);
+		return stop;
 	}
 
 	private void evolveIsland(Island island, int iteration) {
 		var selected = selection.apply(island);
+		LOG.trace("evolveIsland island={} iteration={} selectedCandidates={}", island.id(), iteration, selected.size());
 		if (selected.isEmpty()) {
 			LOG.warn("No solutions selected for evolution on island {} at iteration {}",
 					island.id(), iteration);
@@ -219,26 +248,40 @@ public class MAPElites<T> {
 		}
 		Listener.callAll(listeners, listener -> listener.onSolutionSelection(selected, island, iteration));
 		var evolved = evolveOperator.apply(selected);
+		LOG.trace("Evolution operator produced: {}", evolved);
 		if (evolved == null) {
+			LOG.trace("Evolved result is null, skipping addSolution");
 			return;
 		}
 		var solution = addSolution(evolved, island, iteration);
+		LOG.trace("Solution added with id={} on island={}", solution.id(), island.id());
 		Listener.callAll(listeners, listener -> listener.onSolutionGenerated(solution, selected, iteration));
 	}
 
 	private Solution<T> addSolution(T evolved, Island island, int iteration) {
+		LOG.trace("addSolution called for island={} iteration={}", island.id(), iteration);
 		var fitness = fitnessFunction.apply(evolved);
+		LOG.trace("Computed fitness for evolved candidate: {}", fitness);
 		var coords = calculateFeatureCoords(evolved, fitness);
 		var solution = new Solution<T>(UUID.randomUUID(), evolved, null, fitness, iteration, island.id(), coords);
+		LOG.trace("Constructed Solution id={} coords={}", solution.id(), Arrays.toString(coords));
 		var bestBefore = repository.best();
-		addToGrid(solution);
+		boolean improved = addToGrid(solution);
+		LOG.trace("addToGrid returned improved={} for solution id={}", improved, solution.id());
 		if (bestBefore == null || repository.best().id().equals(solution.id())) {
 			// best solution is the same solution now
 			Listener.callAll(listeners, listener -> listener.onNewBestSolution(solution, bestBefore, iteration));
+			LOG.trace("New best solution set id={} (previous best was {})", solution.id(), bestBefore != null ? bestBefore.id() : null);
 		}
 		return solution;
 	}
 
 	public record Cell(String key, int trials, double curiosity, int improveIter, UUID solutionId) {
+	}
+
+	private static void trace(String format, Object... args) {
+		if (LOG.isTraceEnabled()) {
+			LOG.trace(String.format(format, args));
+		}
 	}
 }

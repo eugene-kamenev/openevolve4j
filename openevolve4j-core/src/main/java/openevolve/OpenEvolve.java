@@ -44,7 +44,7 @@ public class OpenEvolve {
 			initial.clear();
 		} else {
 			initial.add(new EvolveSolution(null, Instant.now(), structure.target(),
-					config.solution().language(), null, Map.of(), Map.of(),
+					 null, Map.of(), Map.of(),
 					config.solution().fullRewrite()));
 		}
 		var stateWriter = new StateWriter<EvolveSolution>(stateJson, mapper, restart);
@@ -64,8 +64,7 @@ public class OpenEvolve {
 				config.solution().evalTimeout(), mapper);
 		var evolveFunction = new OpenEvolveFunction(repository,
 				new OpenEvolveAgent(config.prompts(),
-						new LLMEnsemble(random, config.llm(), restBuilder), random,
-						config.selection().numberTop(), config.selection().numberDiverse()),
+						new LLMEnsemble(random, config.llm(), restBuilder), random),
 				config.selection().numberDiverse(), config.selection().numberTop());
 		var selection = new OpenEvolveSelection(repository, random, selConf.explorationRatio(),
 				selConf.exploitationRatio(), selConf.eliteSelectionRatio(),

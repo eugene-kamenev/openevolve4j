@@ -1,19 +1,33 @@
+# Parent Solutions
+
+```xml
+{parents}
+```
+
+# Current Solution
+
+```xml
+{solution}
+```
+
 # Task
 {task}
 
-# Parent Solutions
-{parents}
+# Output Format
+Use diff-fenced format where
 
-{solution}
-
-Required diff format:
+```
+path_to_solution/file
 <<<<<<< SEARCH
-# Original code to find and replace (must match exactly)
+# Original code block to be found and replaced
 =======
-# New replacement code
+# New code block to replace the original
 >>>>>>> REPLACE
+```
+## Example:
 
-Example:
+```
+example.py
 <<<<<<< SEARCH
 for i in range(m):
     for j in range(p):
@@ -26,8 +40,11 @@ for i in range(m):
         for j in range(p):
             C[i, j] += A[i, k] * B[k, j]
 >>>>>>> REPLACE
+```
+
+Ensure actual file path is used instead of **path_to_solution/file** placeholder.
 
 Guidelines:
-- Each SEARCH section must match code in the current program exactly, including whitespace.
+- Each SEARCH must match exact code in the Current Solution file, including whitespace.
 - Prefer changes that improve algorithmic metrics.
-- Do not rewrite the entire program.
+- Do not rewrite the entire program. You can provide multiple diffs if needed.

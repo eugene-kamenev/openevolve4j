@@ -50,14 +50,26 @@ public final class BashExecutor {
 		if (!finished) {
 			// Timed out: forcefully kill and mark result
 			process.destroyForcibly();
+			// Interrupt gobbler threads to unblock them
+			outThread.interrupt();
+			errThread.interrupt();
 			exitCode = -1;
 		} else {
 			exitCode = process.exitValue();
 		}
 
-		// Ensure gobblers finish
-		outThread.join();
-		errThread.join();
+		// Ensure gobblers finish with timeout to prevent indefinite blocking
+		long remainingTimeoutMs = Math.max(1000, timeout.toMillis() / 10); // Give threads 10% of original timeout or 1 second minimum
+		outThread.join(remainingTimeoutMs);
+		errThread.join(remainingTimeoutMs);
+		
+		// Force interrupt if threads are still alive
+		if (outThread.isAlive()) {
+			outThread.interrupt();
+		}
+		if (errThread.isAlive()) {
+			errThread.interrupt();
+		}
 
 		Instant end = Instant.now();
 
@@ -105,13 +117,26 @@ public final class BashExecutor {
 
 		if (!finished) {
 			process.destroyForcibly();
+			// Interrupt gobbler threads to unblock them
+			outThread.interrupt();
+			errThread.interrupt();
 			exitCode = -1;
 		} else {
 			exitCode = process.exitValue();
 		}
 
-		outThread.join();
-		errThread.join();
+		// Ensure gobblers finish with timeout
+		long remainingTimeoutMs = Math.max(1000, timeout.toMillis() / 10);
+		outThread.join(remainingTimeoutMs);
+		errThread.join(remainingTimeoutMs);
+		
+		// Force interrupt if threads are still alive
+		if (outThread.isAlive()) {
+			outThread.interrupt();
+		}
+		if (errThread.isAlive()) {
+			errThread.interrupt();
+		}
 
 		Instant end = Instant.now();
 
@@ -131,7 +156,7 @@ public final class BashExecutor {
 		return new Thread(() -> {
 			try (BufferedReader br = new BufferedReader(new InputStreamReader(stream, charset))) {
 				String line;
-				while ((line = br.readLine()) != null) {
+				while ((line = br.readLine()) != null && !Thread.currentThread().isInterrupted()) {
 					sink.append(line).append(System.lineSeparator());
 				}
 			} catch (IOException ignored) {

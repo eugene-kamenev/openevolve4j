@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import org.slf4j.Logger;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import openevolve.Constants;
@@ -13,12 +14,15 @@ import openevolve.OpenEvolveConfig;
 import openevolve.events.EventListener;
 import openevolve.mapelites.MAPElites;
 import openevolve.mapelites.Repository.Solution;
+import openevolve.mapelites.listener.MAPElitesLoggingListener;
 import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 @Service
 public class OpenEvolveService {
+
+    private static final Logger log = org.slf4j.LoggerFactory.getLogger(OpenEvolveService.class);
 
     private final Map<String, Disposable> runningTasks = new ConcurrentHashMap<>();
     private final Map<String, MAPElites<EvolveSolution>> mapElites = new ConcurrentHashMap<>();
@@ -38,6 +42,7 @@ public class OpenEvolveService {
         var newMapElites = OpenEvolve.create(config, Constants.OBJECT_MAPPER, restart,
                 initialSolutions, allSolutions, restBuilder, List.of(listener));
         newMapElites.addListener(listener);
+        newMapElites.addListener(new MAPElitesLoggingListener<>());
         mapElites.put(id, newMapElites);
         return startProcess(id,
                 Mono.fromRunnable(() -> newMapElites.run(config.mapelites().numIterations()))
@@ -50,7 +55,10 @@ public class OpenEvolveService {
             stopExistingTask = stopProcess(taskId);
         }
         return stopExistingTask.then(Mono.defer(() -> {
-            runningTasks.put(taskId, task.doFinally(_ -> {
+            runningTasks.put(taskId, task.doOnSubscribe(s -> {
+                log.info("Task {} started", taskId);
+            }).doFinally(s -> {
+                log.info("Task {} finished with status {}", taskId, s);
                 runningTasks.remove(taskId);
                 mapElites.remove(taskId);
             }).subscribe());

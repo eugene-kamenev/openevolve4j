@@ -2,9 +2,11 @@ package openevolve;
 
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import openevolve.BaseAgent.Change;
 import openevolve.util.PathKeyDeserializer;
 
 public record EvolveSolution(
@@ -12,8 +14,8 @@ public record EvolveSolution(
 		Instant dateCreated,
 		@JsonDeserialize(keyUsing = PathKeyDeserializer.class)
 		Map<Path, String> files,
-		String language,
-		String changes,
+		@JsonDeserialize(keyUsing = PathKeyDeserializer.class)
+		Map<Path, List<Change>> changes,
 		Map<String, Object> parentMetrics,
 		Map<String, Object> metadata,
 		boolean fullRewrite) {

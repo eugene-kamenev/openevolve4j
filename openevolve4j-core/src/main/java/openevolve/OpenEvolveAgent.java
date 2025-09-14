@@ -5,65 +5,60 @@ import java.util.Map;
 import java.util.Random;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import org.slf4j.Logger;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.chat.prompt.SystemPromptTemplate;
 import openevolve.mapelites.Repository.Solution;
-import openevolve.util.SolutionUtil;
 
 public class OpenEvolveAgent extends BaseAgent implements Function<EvolveStep, EvolveSolution> {
 
-	private final int numTopSolutions;
-	private final int numDiverseSolutions;
+	private static final Logger log = org.slf4j.LoggerFactory.getLogger(OpenEvolveAgent.class);
 
 	public OpenEvolveAgent(Map<String, List<PromptTemplate>> templates, LLMEnsemble llmEnsemble,
-			Random random, int numTopSolutions, int numDiverseSolutions) {
+			Random random) {
 		super(templates, llmEnsemble, random);
-		this.numTopSolutions = numTopSolutions;
-		this.numDiverseSolutions = numDiverseSolutions;
 	}
 
 	@Override
 	public EvolveSolution apply(EvolveStep step) {
 		var client = llmEnsemble.sample();
-		var userMessageTmpl = getTemplate(Constants.USER_DIFF);
-		var parent = step.parent();
-		var solution = parent.solution();
-		if (solution.fullRewrite()) {
-			userMessageTmpl = getTemplate(Constants.USER_FULL_REWRITE);
-		}
-		var taskTmpl = getTemplate(Constants.TASK).getTemplate();
-		var solutionTmpl = renderSolution(parent, "Current Solution");
-		var parentsBuilder = new StringBuilder();
-		int i = 1;
-		List<Solution<EvolveSolution>> solutions = Stream
+		List<Solution<EvolveSolution>> inspirations = Stream
 				.of(step.topSolutions().stream(), step.inspirations().stream(),
 						step.previousSolutions().stream())
 				.flatMap(Function.identity()).distinct().toList();
-		if (!solutions.isEmpty()) {
-			for (var p : solutions) {
-				parentsBuilder.append(renderSolution(p, "Parent Solution " + i)).append("\n---\n");
-				i++;
-			}
-		}
-		var systemMessageTmpl =
-				new SystemPromptTemplate(getTemplate(Constants.SYSTEM_DEFAULT).getTemplate());
-		var userPrompt = userMessageTmpl.createMessage(Map.of("solution", solutionTmpl, "task",
-				taskTmpl, "parents", parentsBuilder.toString()));
-		var systemPrompt = systemMessageTmpl.createMessage();
+		var prompt = generatePrompt(step.parent(), inspirations);
 		String response = null;
-		response = client.getValue().prompt(new Prompt(systemPrompt, userPrompt)).call().content();
-		var llmRequest = List.of(Map.of("system", systemPrompt.getText()),
-				Map.of("user", userPrompt.getText()));
+		log.debug("Doint request to LLM model", client.getKey());
+		response = client.getValue().prompt(prompt).call().content();
+		var llmRequest = promptToMap(prompt);
 		var metadata = Map.of("llmModel", client.getKey(), "llmRequest", llmRequest, "llmResponse",
 				response);
-		return newSolution(step.parent(), metadata);
+		log.debug("LLM model {} request done", client.getKey());
+		var newSolution = this.newSolution(step.parent(), metadata);
+		log.debug("LLM model {} produced solution", client.getKey());
+		if (newSolution == null) {
+			log.error("Failed to parse LLM ({} ) response: {}", client.getKey(), metadata);
+			return null;
+		}
+		return newSolution;
 	}
 
-	private String renderSolution(Solution<EvolveSolution> solution, String name) {
-		return getTemplate(Constants.SOLUTION)
-				.render(Map.of("code", SolutionUtil.toContent(solution.solution().files()),
-						"language", solution.solution().language(), "metrics",
-						metricsToString(solution.fitness()), "name", name));
+	private Prompt generatePrompt(Solution<EvolveSolution> parent,
+			List<Solution<EvolveSolution>> inspirations) {
+		var taskTmpl = getTemplate(Constants.TASK).getTemplate();
+		var systemMessageTmpl =
+				new SystemPromptTemplate(getTemplate(Constants.SYSTEM_DEFAULT).getTemplate());
+		var userMessageTmpl = getTemplate(Constants.USER_FULL_REWRITE);
+		var format = SOLUTION_EXAMPLE;
+		if (!parent.solution().fullRewrite()) {
+			userMessageTmpl = getTemplate(Constants.USER_DIFF);
+		}
+		var solutionXml = renderXml(convert(List.of(parent)).get(0), "Solution");
+		var inspirationsXml = renderXml(new SolutionsXml(convert(inspirations)), "Solutions");
+		return new Prompt(systemMessageTmpl.createMessage(),
+				userMessageTmpl.createMessage(
+						Map.of("format", format, "solution", solutionXml, "task", taskTmpl,
+								"parents", inspirationsXml != null ? inspirationsXml : "")));
 	}
 }

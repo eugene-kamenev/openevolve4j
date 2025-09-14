@@ -8,7 +8,3 @@ CRITICAL REQUIREMENTS:
 3. Make the instructions clearer and more specific
 4. Focus on what will improve accuracy and task performance
 5. Keep the prompt concise but effective
-
-Provide ONLY the complete new prompt text, with no additional commentary:
-
-NEW PROMPT:

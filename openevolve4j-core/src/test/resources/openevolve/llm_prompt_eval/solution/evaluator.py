@@ -277,6 +277,7 @@ def evaluate_prompt(prompt, dataset, config, num_samples):
                     model=TASK_MODEL_NAME,
                     messages=messages,
                     temperature=0.1,  # Low temperature for consistent results
+                    seed=42,
                     max_tokens=MAX_TOKENS,
                 )
                 break
