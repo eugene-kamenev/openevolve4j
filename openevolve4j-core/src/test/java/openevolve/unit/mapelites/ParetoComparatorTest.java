@@ -2,7 +2,7 @@ package openevolve.unit.mapelites;
 
 import org.junit.jupiter.api.Test;
 import openevolve.mapelites.ParetoComparator;
-import openevolve.mapelites.Repository;
+import openevolve.mapelites.Population;
 import org.junit.jupiter.api.DisplayName;
 
 import java.util.HashMap;
@@ -13,11 +13,11 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("ParetoComparator Unit Tests")
 public class ParetoComparatorTest {
 
-    private Repository.Solution<String> sol(double[] objectives) {
+    private Population.Solution<String> sol(double[] objectives) {
         Map<String, Object> fitness = new HashMap<>();
         // expose objectives as an array under key "objs"
         fitness.put("objs", objectives);
-        return new Repository.Solution<>(UUID.randomUUID(), "s", null, fitness, 0, 0, new int[]{0});
+        return new Population.Solution<>(UUID.randomUUID(), "s", null, fitness, 0, 0, new int[]{0});
     }
 
     @Test
@@ -82,11 +82,11 @@ public class ParetoComparatorTest {
 
         Map<String, Object> fitness1 = new HashMap<>();
         fitness1.put("obj", 5.0);
-        var a = new Repository.Solution<>(UUID.randomUUID(), "s1", null, fitness1, 0, 0, new int[]{0});
+        var a = new Population.Solution<>(UUID.randomUUID(), "s1", null, fitness1, 0, 0, new int[]{0});
 
         Map<String, Object> fitness2 = new HashMap<>();
         fitness2.put("obj", 3.0);
-        var b = new Repository.Solution<>(UUID.randomUUID(), "s2", null, fitness2, 0, 0, new int[]{0});
+        var b = new Population.Solution<>(UUID.randomUUID(), "s2", null, fitness2, 0, 0, new int[]{0});
 
         assertTrue(cmp.dominates(a, b), "Higher objective value should dominate lower (maximization)");
         assertFalse(cmp.dominates(b, a), "Lower objective value should not dominate higher");

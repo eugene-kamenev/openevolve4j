@@ -33,6 +33,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import openevolve.util.PathKeyDeserializer;
 
 public final class Constants {
 
@@ -76,6 +77,7 @@ public final class Constants {
 	public static final ObjectMapper OBJECT_MAPPER =
 			JsonMapper.builder().findAndAddModules()
 					.addModule(new JavaTimeModule())
+					.addModule(new CustomModule())
 					.enable(JsonParser.Feature.ALLOW_COMMENTS)
 					.enable(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS)
 					.enable(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES)
@@ -83,8 +85,15 @@ public final class Constants {
 					.enable(JsonReadFeature.ALLOW_NON_NUMERIC_NUMBERS)
 					.enable(JsonReadFeature.ALLOW_TRAILING_COMMA)
 					.configure(SerializationFeature.WRITE_DATE_TIMESTAMPS_AS_NANOSECONDS, false)
-					.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, true)
+					.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
 					.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false).build();
+	
+	public static final class CustomModule extends SimpleModule {
+		public CustomModule() {
+			super("CustomModule");
+			addKeyDeserializer(Path.class, new PathKeyDeserializer());
+		}
+	}
 
 	public static final FileVisitor<Path> DIRECTORY_CLEANER = new SimpleFileVisitor<Path>() {
 		@Override

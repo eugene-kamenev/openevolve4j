@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 import openevolve.mapelites.listener.Listener;
 import openevolve.mapelites.listener.RepositoryListener;
 
-public class DefaultRepository<T> implements Repository<T> {
+public class DefaultPopulation<T> implements Population<T> {
 
 	private final Map<UUID, Solution<T>> solutionsById = new HashMap<>();
 	private final Set<UUID> archive = new HashSet<>();
@@ -28,7 +28,7 @@ public class DefaultRepository<T> implements Repository<T> {
 	private Island currentIsland;
 	private Solution<T> bestSolution;
 
-	public DefaultRepository(Comparator<Solution<T>> comparator, int populationSize,
+	public DefaultPopulation(Comparator<Solution<T>> comparator, int populationSize,
 			int archiveSize, int numIslands) {
 		Objects.requireNonNull(comparator, "Comparator must not be null");
 		if (populationSize <= 0) {
@@ -146,7 +146,7 @@ public class DefaultRepository<T> implements Repository<T> {
 		Objects.requireNonNull(solution.id(), "solution id must not be null");
 		solutionsById.put(solution.id(), solution);
 		solutions.add(solution);
-		islands.get(solution.islandId()).archive().add(solution.id());
+		islands.get(solution.metadata().islandId()).archive().add(solution.id());
 		Listener.callAll(listeners, l -> l.onSolutionAdded(solution));
 		if (bestSolution == null || dominates(solution, bestSolution)) {
 			bestSolution = solution;
@@ -155,18 +155,18 @@ public class DefaultRepository<T> implements Repository<T> {
 	}
 
 	@Override
-    public RepositoryState snapshot() {
+    public PopulationState snapshot() {
         var solutionsCopy = new ArrayList<>(solutionsById.keySet());
         var archiveCopy = new HashSet<UUID>(archive);
         var islandsCopy = islands.stream()
             .map(i -> (List<UUID>) new ArrayList<>(i.archive()))
             .collect(Collectors.toList());
         Integer currentId = currentIsland != null ? currentIsland.id() : null;
-		return new RepositoryState(solutionsCopy, archiveCopy, islandsCopy, currentId);
+		return new PopulationState(solutionsCopy, archiveCopy, islandsCopy, currentId);
     }
 
     @Override
-    public void restore(RepositoryState state, Map<UUID, Solution<T>> allSolutions) {
+    public void restore(PopulationState state, Map<UUID, Solution<T>> allSolutions) {
         Objects.requireNonNull(state, "repository state must not be null");
 		if (allSolutions == null || allSolutions.isEmpty()) {
 			throw new IllegalArgumentException("allSolutions must not be null or empty");

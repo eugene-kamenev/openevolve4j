@@ -2,7 +2,7 @@ package openevolve;
 
 import java.util.List;
 import java.util.function.Function;
-import openevolve.mapelites.Repository.Solution;
+import openevolve.mapelites.Population.Solution;
 
 public class OpenEvolveMetricExtractor
 		implements Function<Solution<EvolveSolution>, double[]> {

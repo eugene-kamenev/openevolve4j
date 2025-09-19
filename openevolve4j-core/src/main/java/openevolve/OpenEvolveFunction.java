@@ -3,17 +3,17 @@ package openevolve;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
-import openevolve.mapelites.Repository;
-import openevolve.mapelites.Repository.Solution;
+import openevolve.mapelites.Population;
+import openevolve.mapelites.Population.Solution;
 
 public class OpenEvolveFunction
 		implements Function<List<Solution<EvolveSolution>>, EvolveSolution> {
-	private final Repository<EvolveSolution> repository;
+	private final Population<EvolveSolution> repository;
 	private final Function<EvolveStep, EvolveSolution> evolveFunction;
 	private final int numberDiverseSolutions;
 	private final int numberTopSolutions;
 
-	public OpenEvolveFunction(Repository<EvolveSolution> repository,
+	public OpenEvolveFunction(Population<EvolveSolution> repository,
 			Function<EvolveStep, EvolveSolution> evolveFunction, int numberDiverseSolutions,
 			int numberTopSolutions) {
 		this.repository = repository;

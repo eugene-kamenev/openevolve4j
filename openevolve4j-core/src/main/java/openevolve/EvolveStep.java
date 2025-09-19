@@ -1,7 +1,7 @@
 package openevolve;
 
 import java.util.List;
-import openevolve.mapelites.Repository.Solution;
+import openevolve.mapelites.Population.Solution;
 
 public record EvolveStep(Solution<EvolveSolution> parent,
 		List<Solution<EvolveSolution>> inspirations,

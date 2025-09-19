@@ -1,9 +1,9 @@
 package openevolve.unit.mapelites;
 
 import org.junit.jupiter.api.Test;
-import openevolve.mapelites.DefaultRepository;
+import openevolve.mapelites.DefaultPopulation;
 import openevolve.mapelites.ParetoComparator;
-import openevolve.mapelites.Repository;
+import openevolve.mapelites.Population;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.BeforeEach;
 
@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("DefaultRepository Unit Tests")
 public class DefaultRepositoryTest {
 
-	private Comparator<Repository.Solution<String>> standardComparator;
+	private Comparator<Population.Solution<String>> standardComparator;
 
 	@BeforeEach
 	void setUp() {
@@ -24,24 +24,24 @@ public class DefaultRepositoryTest {
 		};
 	}
 
-	private Repository.Solution<String> makeSolution(double fitness, int islandId) {
+	private Population.Solution<String> makeSolution(double fitness, int islandId) {
 		Map<String, Object> fitnessMap = new HashMap<>();
 		fitnessMap.put("fitness", fitness);
-		return new Repository.Solution<>(UUID.randomUUID(), "sol", null, fitnessMap, 0, islandId,
+		return new Population.Solution<>(UUID.randomUUID(), "sol", null, fitnessMap, 0, islandId,
 				new int[] {0});
 	}
 
-	private Repository.Solution<String> makeMultiObjectiveSolution(double[] objs, int islandId) {
+	private Population.Solution<String> makeMultiObjectiveSolution(double[] objs, int islandId) {
 		Map<String, Object> fitnessMap = new HashMap<>();
 		fitnessMap.put("objs", objs);
-		return new Repository.Solution<>(UUID.randomUUID(), "sol", null, fitnessMap, 0, islandId,
+		return new Population.Solution<>(UUID.randomUUID(), "sol", null, fitnessMap, 0, islandId,
 				new int[] {0});
 	}
 
 	@Test
 	@DisplayName("Test basic CRUD operations")
 	public void testSaveFindDeleteSimple() {
-		Repository<String> repo = new DefaultRepository<>(standardComparator, 10, 5, 2);
+		Population<String> repo = new DefaultPopulation<>(standardComparator, 10, 5, 2);
 
 		var s = makeSolution(1.23, 0);
 		repo.save(s);
@@ -58,7 +58,7 @@ public class DefaultRepositoryTest {
 	@Test
 	@DisplayName("Test island assignment and island-specific queries")
 	public void testIslandAssignmentAndFindByIsland() {
-		Repository<String> repo = new DefaultRepository<>(standardComparator, 10, 5, 3);
+		Population<String> repo = new DefaultPopulation<>(standardComparator, 10, 5, 3);
 
 		var s0 = makeSolution(0.1, 0);
 		var s1 = makeSolution(0.2, 1);
@@ -84,7 +84,7 @@ public class DefaultRepositoryTest {
 	@DisplayName("Test population trimming keeps best solutions")
 	public void testPopulationTrimmingKeepsBest() {
 		// comparator ascending; DefaultRepository reverses comparator to treat larger as better
-		DefaultRepository<String> repo = new DefaultRepository<>(standardComparator, 2, 1, 2);
+		DefaultPopulation<String> repo = new DefaultPopulation<>(standardComparator, 2, 1, 2);
 
 		var s1 = makeSolution(1.0, 0);
 		var s2 = makeSolution(2.0, 0);
@@ -106,7 +106,7 @@ public class DefaultRepositoryTest {
 	@Test
 	@DisplayName("Test archive replacement keeps better solutions")
 	public void testArchiveReplacementKeepsBetter() {
-		DefaultRepository<String> repo = new DefaultRepository<>(standardComparator, 10, 1, 1);
+		DefaultPopulation<String> repo = new DefaultPopulation<>(standardComparator, 10, 1, 1);
 
 		var low = makeSolution(1.0, 0);
 		var high = makeSolution(5.0, 0);
@@ -132,7 +132,7 @@ public class DefaultRepositoryTest {
 				new ParetoComparator<>(maximize, s -> (double[]) s.fitness().get("objs"));
 
 		// small population size to force trimming to the Pareto front
-		DefaultRepository<String> repo = new DefaultRepository<>(pareto, 2, 2, 1);
+		DefaultPopulation<String> repo = new DefaultPopulation<>(pareto, 2, 2, 1);
 
 		var s1 = makeMultiObjectiveSolution(new double[] {1.0, 1.0}, 0);
 		var s2 = makeMultiObjectiveSolution(new double[] {2.0, 0.0}, 0);
@@ -148,7 +148,7 @@ public class DefaultRepositoryTest {
 		// repository population should be at most 2 and should contain the dominating solution s3
 		var all = repo.findAll();
 		assertTrue(all.size() <= 2);
-		var ids = all.stream().map(Repository.Solution::id)
+		var ids = all.stream().map(Population.Solution::id)
 				.collect(java.util.stream.Collectors.toSet());
 		assertTrue(ids.contains(s3.id()),
 				"Dominating Pareto-optimal solution s3 should be retained");
@@ -158,26 +158,26 @@ public class DefaultRepositoryTest {
 	@DisplayName("Test repository constructor validation")
 	public void testConstructorValidation() {
 		assertThrows(NullPointerException.class, () ->
-			new DefaultRepository<String>(null, 10, 5, 2),
+			new DefaultPopulation<String>(null, 10, 5, 2),
 			"Should throw when comparator is null");
 
 		assertThrows(IllegalArgumentException.class, () ->
-			new DefaultRepository<String>(standardComparator, -1, 5, 2),
+			new DefaultPopulation<String>(standardComparator, -1, 5, 2),
 			"Should throw when populationSize is negative");
 
 		assertThrows(IllegalArgumentException.class, () ->
-			new DefaultRepository<String>(standardComparator, 10, -1, 2),
+			new DefaultPopulation<String>(standardComparator, 10, -1, 2),
 			"Should throw when archiveSize is negative");
 
 		assertThrows(IllegalArgumentException.class, () ->
-			new DefaultRepository<String>(standardComparator, 10, 5, 0),
+			new DefaultPopulation<String>(standardComparator, 10, 5, 0),
 			"Should throw when numIslands is zero");
 	}
 
 	@Test
 	@DisplayName("Test edge cases with empty repository")
 	public void testEmptyRepositoryBehavior() {
-		Repository<String> repo = new DefaultRepository<>(standardComparator, 10, 5, 2);
+		Population<String> repo = new DefaultPopulation<>(standardComparator, 10, 5, 2);
 
 		assertEquals(0, repo.count());
 		assertTrue(repo.findAll().isEmpty());
@@ -192,7 +192,7 @@ public class DefaultRepositoryTest {
 	@Test
 	@DisplayName("Test repository with different island distributions")
 	public void testMultipleIslandBehavior() {
-		Repository<String> repo = new DefaultRepository<>(standardComparator, 10, 5, 3);
+		Population<String> repo = new DefaultPopulation<>(standardComparator, 10, 5, 3);
 
 		// Add solutions to different islands
 		var s0a = makeSolution(1.0, 0);
@@ -220,7 +220,7 @@ public class DefaultRepositoryTest {
 	@Test
 	@DisplayName("Test repository snapshot functionality")
 	public void testSnapshotFunctionality() {
-		Repository<String> repo = new DefaultRepository<>(standardComparator, 10, 5, 2);
+		Population<String> repo = new DefaultPopulation<>(standardComparator, 10, 5, 2);
 
 		var s1 = makeSolution(1.0, 0);
 		var s2 = makeSolution(2.0, 1);
@@ -238,8 +238,8 @@ public class DefaultRepositoryTest {
 	@Test
 	@DisplayName("Test repository restoration from snapshot")
 	public void testRestoreFromSnapshot() {
-		Repository<String> repo1 = new DefaultRepository<>(standardComparator, 10, 5, 2);
-		Repository<String> repo2 = new DefaultRepository<>(standardComparator, 10, 5, 2);
+		Population<String> repo1 = new DefaultPopulation<>(standardComparator, 10, 5, 2);
+		Population<String> repo2 = new DefaultPopulation<>(standardComparator, 10, 5, 2);
 
 		var s1 = makeSolution(1.0, 0);
 		var s2 = makeSolution(2.0, 1);

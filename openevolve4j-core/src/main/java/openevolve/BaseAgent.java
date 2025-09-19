@@ -3,7 +3,6 @@ package openevolve;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.file.Path;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,7 +16,7 @@ import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlCData;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlElementWrapper;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
 import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
-import openevolve.mapelites.Repository.Solution;
+import openevolve.mapelites.Population.Solution;
 import openevolve.util.CodeParsingUtils;
 import openevolve.util.StreamingXmlParser;
 import openevolve.util.CodeParsingUtils.DiffBlock;
@@ -95,8 +94,8 @@ public abstract class BaseAgent {
 		}
 		if (newSolution != null && !newSolution.isEmpty()) {
 			trace("Constructing EvolveSolution with {} files", newSolution.size());
-			var evolvedSolution = new EvolveSolution(parent.id(), Instant.now(), newSolution,
-					changes, parent.fitness(), metadata, parent.solution().fullRewrite());
+			var evolvedSolution = new EvolveSolution(newSolution,
+					changes, parent.fitness(), metadata);
 			trace("EvolveSolution created for parent id={}", parent.id());
 			return evolvedSolution;
 		}

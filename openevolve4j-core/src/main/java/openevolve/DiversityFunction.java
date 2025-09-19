@@ -13,8 +13,8 @@ import java.util.function.ToDoubleBiFunction;
 import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
 import org.apache.commons.text.similarity.LevenshteinDistance;
-import openevolve.mapelites.Repository;
-import openevolve.mapelites.Repository.Solution;
+import openevolve.mapelites.Population;
+import openevolve.mapelites.Population.Solution;
 import openevolve.util.SolutionUtil;
 
 /**
@@ -48,9 +48,9 @@ public class DiversityFunction implements ToDoubleFunction<EvolveSolution> {
 	private final int diversitySetSize;
 	private final int diversityCacheSize;
 	private final Random random;
-	private final Repository<EvolveSolution> repository;
+	private final Population<EvolveSolution> repository;
 
-	public DiversityFunction(Repository<EvolveSolution> repository, int diversitySetSize,
+	public DiversityFunction(Population<EvolveSolution> repository, int diversitySetSize,
 			int diversityCacheSize, Random random,
 			ToDoubleBiFunction<String, String> diversityFunc) {
 		this.repository = repository;
@@ -60,7 +60,7 @@ public class DiversityFunction implements ToDoubleFunction<EvolveSolution> {
 		this.random = random;
 	}
 
-	public DiversityFunction(Repository<EvolveSolution> repository, int diversitySetSize,
+	public DiversityFunction(Population<EvolveSolution> repository, int diversitySetSize,
 			int diversityCacheSize, Random random) {
 		this(repository, diversitySetSize, diversityCacheSize, random, DiversityFunction::fast);
 	}

@@ -5,17 +5,17 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.util.*;
 
 import org.junit.jupiter.api.Test;
-import openevolve.mapelites.DefaultRepository;
+import openevolve.mapelites.DefaultPopulation;
 import openevolve.mapelites.Migration;
-import openevolve.mapelites.Repository;
+import openevolve.mapelites.Population;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 
 @DisplayName("Migration Unit Tests")
 public class MigrationTest {
 
-    private Comparator<Repository.Solution<String>> comparator;
-    private DefaultRepository<String> repository;
+    private Comparator<Population.Solution<String>> comparator;
+    private DefaultPopulation<String> repository;
 
     @BeforeEach
     void setUp() {
@@ -23,13 +23,13 @@ public class MigrationTest {
             (Double) a.fitness().get("fitness"),
             (Double) b.fitness().get("fitness")
         );
-        repository = new DefaultRepository<>(comparator, 100, 100, 3);
+        repository = new DefaultPopulation<>(comparator, 100, 100, 3);
     }
 
-    private Repository.Solution<String> makeSolution(double fitness, int islandId) {
+    private Population.Solution<String> makeSolution(double fitness, int islandId) {
         Map<String, Object> fitnessMap = new HashMap<>();
         fitnessMap.put("fitness", fitness);
-        return new Repository.Solution<>(UUID.randomUUID(), "sol", null, fitnessMap, 0, islandId,
+        return new Population.Solution<>(UUID.randomUUID(), "sol", null, fitnessMap, 0, islandId,
                 new int[] { 0 });
     }
 
@@ -128,7 +128,7 @@ public class MigrationTest {
     @DisplayName("Test migration to neighboring islands")
     public void testMigrationToNeighbors() {
         // Create repository with specific number of islands for predictable neighbor calculation
-        repository = new DefaultRepository<>(comparator, 100, 100, 5);
+        repository = new DefaultPopulation<>(comparator, 100, 100, 5);
         
         var s1 = makeSolution(5.0, 2); // Island 2
         repository.save(s1);
@@ -160,7 +160,7 @@ public class MigrationTest {
         migration.migrateSolutions(island, 1);
 
         // Find migrated solution
-        Repository.Solution<String> migrated = null;
+        Population.Solution<String> migrated = null;
         for (var otherIsland : repository.findAllIslands()) {
             if (otherIsland.id() != 0) {
                 var solutions = repository.findByIslandId(otherIsland.id());
@@ -203,7 +203,7 @@ public class MigrationTest {
     @Test
     @DisplayName("Test migration with single island")
     public void testMigrationWithSingleIsland() {
-        repository = new DefaultRepository<>(comparator, 100, 100, 1);
+        repository = new DefaultPopulation<>(comparator, 100, 100, 1);
         
         var s1 = makeSolution(5.0, 0);
         repository.save(s1);

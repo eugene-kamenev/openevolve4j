@@ -8,13 +8,13 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import openevolve.Constants;
 import openevolve.mapelites.listener.MAPElitesLoggingListener;
-import openevolve.mapelites.DefaultRepository;
+import openevolve.mapelites.DefaultPopulation;
 import openevolve.mapelites.MAPElites;
 import openevolve.mapelites.Migration;
-import openevolve.mapelites.Repository;
+import openevolve.mapelites.Population;
 import openevolve.mapelites.FeatureScaler.ScaleMethod;
-import openevolve.mapelites.Repository.Island;
-import openevolve.mapelites.Repository.Solution;
+import openevolve.mapelites.Population.Island;
+import openevolve.mapelites.Population.Solution;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,7 +55,7 @@ public class RastriginTest {
             return Double.compare(fb, fa);
         };
 
-        Repository<double[]> repository = new DefaultRepository<>(
+        Population<double[]> repository = new DefaultPopulation<>(
                 comparator, POPULATION_SIZE, ARCHIVE_SIZE, NUM_ISLANDS);
 
         List<String> featureDims = Arrays.asList("rastrigin", Constants.DIVERSITY);
@@ -104,7 +104,7 @@ public class RastriginTest {
             return Double.compare(fb, fa);
         };
 
-        Repository<double[]> repository = new DefaultRepository<>(
+        Population<double[]> repository = new DefaultPopulation<>(
                 comparator, 100, 60, 2);
 
         List<String> featureDims = Arrays.asList("rastrigin", Constants.DIVERSITY);
@@ -143,7 +143,7 @@ public class RastriginTest {
             return Double.compare(fb, fa);
         };
 
-        Repository<double[]> repository = new DefaultRepository<>(
+        Population<double[]> repository = new DefaultPopulation<>(
                 comparator, 50, 30, 2);
 
         List<String> featureDims = Arrays.asList("rastrigin", Constants.DIVERSITY);
@@ -236,7 +236,7 @@ public class RastriginTest {
         };
     }
 
-    private Function<Island, List<Solution<double[]>>> createSelectionFunction(Repository<double[]> repository) {
+    private Function<Island, List<Solution<double[]>>> createSelectionFunction(Population<double[]> repository) {
         return island -> {
             List<UUID> ids = new ArrayList<>(island.archive());
             if (ids.isEmpty()) return Collections.emptyList();

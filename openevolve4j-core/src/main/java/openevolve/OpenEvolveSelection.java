@@ -10,14 +10,14 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import openevolve.mapelites.Repository;
-import openevolve.mapelites.Repository.Island;
-import openevolve.mapelites.Repository.Solution;
+import openevolve.mapelites.Population;
+import openevolve.mapelites.Population.Island;
+import openevolve.mapelites.Population.Solution;
 
 public class OpenEvolveSelection
 		implements Function<Island, List<Solution<EvolveSolution>>> {
 
-	private final Repository<EvolveSolution> repository;
+	private final Population<EvolveSolution> repository;
 	private final Random random;
 	private final double explorationRatio;
 	private final double exploitationRatio;
@@ -25,7 +25,7 @@ public class OpenEvolveSelection
 	private final int numInspirations;
 	private final int featureBins;
 
-	public OpenEvolveSelection(Repository<EvolveSolution> repository, Random random,
+	public OpenEvolveSelection(Population<EvolveSolution> repository, Random random,
 			double explorationRatio, double exploitationRatio, double eliteSelectionRatio,
 			int numInspirations, int featureBins) {
 		this.repository = repository;
@@ -42,12 +42,12 @@ public class OpenEvolveSelection
 		var parent = sampleParent(t);
 		var inspirations = new ArrayList<Solution<EvolveSolution>>();
         inspirations.add(parent);
-        var parentId = parent.solution().parentId();
+        var parentId = parent.parentId();
         while (parentId != null) {
             var p = repository.findById(parentId);
             if (p != null) {
                 inspirations.add(p);
-                parentId = p.solution().parentId();
+                parentId = p.parentId();
             } else {
                 break;
             }
@@ -85,7 +85,7 @@ public class OpenEvolveSelection
 		}
 		var archive = repository.getArchive();
 		var archiveProgramsInIsland = archive.stream().filter(Objects::nonNull)
-				.filter(s -> s.islandId() == currentIsland).collect(Collectors.toList());
+				.filter(s -> s.metadata().islandId() == currentIsland).collect(Collectors.toList());
 
 		if (!archiveProgramsInIsland.isEmpty()) {
 			return archiveProgramsInIsland.get(random.nextInt(archiveProgramsInIsland.size()));
@@ -107,7 +107,7 @@ public class OpenEvolveSelection
         if (n <= 0) return List.of();
 
         List<Solution<EvolveSolution>> inspirations = new ArrayList<>();
-        var parentIsland = repository.findIslandById(parent.islandId());
+        var parentIsland = repository.findIslandById(parent.metadata().islandId());
 
         var islandSolutions = repository.findByIslandId(parentIsland.id());
         if (islandSolutions == null || islandSolutions.isEmpty()) {
@@ -143,13 +143,13 @@ public class OpenEvolveSelection
             // Create island-specific feature mapping for efficient lookup
             var islandFeatureMap = new HashMap<String, UUID>();
             for (var solution : islandSolutions) {
-                islandFeatureMap.put(solution.cellId(), solution.id());
+                islandFeatureMap.put(solution.metadata().cellId(), solution.id());
             }
 
             // Try to find programs from nearby feature cells within the island
             for (int attempt = 0; attempt < remainingSlots * 3 && nearbySolutions.size() < remainingSlots; attempt++) {
                 var perturbedCoords = new ArrayList<Integer>();
-                for (var coord : parent.cell()) {
+                for (var coord : parent.metadata().cell()) {
                     int perturbed = Math.max(0, Math.min(featureBins - 1, coord + random.nextInt(5) - 2));
                     perturbedCoords.add(perturbed);
                 }

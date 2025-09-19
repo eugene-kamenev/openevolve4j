@@ -9,7 +9,7 @@ import org.slf4j.Logger;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.chat.prompt.SystemPromptTemplate;
-import openevolve.mapelites.Repository.Solution;
+import openevolve.mapelites.Population.Solution;
 
 public class OpenEvolveAgent extends BaseAgent implements Function<EvolveStep, EvolveSolution> {
 
@@ -35,7 +35,7 @@ public class OpenEvolveAgent extends BaseAgent implements Function<EvolveStep, E
 		response = client.getValue().prompt(prompt).call().content();
 		var llmRequest = promptToMap(prompt);
 		var metadata = Map.of("llmModel", client.getKey(), "llmRequest", llmRequest, "llmResponse",
-				response);
+				response, "fullRewrite", step.parent().solution().fullRewrite());
 		if (log.isTraceEnabled()) {
 			log.trace("LLM model {} request done", client.getKey());
 		}

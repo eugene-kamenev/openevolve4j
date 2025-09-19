@@ -1,57 +1,38 @@
 package openevolve;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
-import org.springframework.web.client.RestClient;
+import org.springframework.ai.openai.api.OpenAiApi;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import openevolve.mapelites.DefaultRepository;
-import openevolve.mapelites.listener.RepositoryListener.SolutionWriter;
+import openevolve.mapelites.DefaultPopulation;
 import openevolve.mapelites.listener.RepositoryListener;
-import openevolve.mapelites.listener.MAPElitesListener.StateWriter;
 import openevolve.mapelites.MAPElites;
 import openevolve.mapelites.Migration;
 import openevolve.mapelites.FeatureScaler.ScaleMethod;
-import openevolve.mapelites.Repository.RepositoryState;
-import openevolve.mapelites.Repository.Solution;
 import openevolve.util.SolutionUtil;
 import openevolve.util.Util;
 
 public class OpenEvolve {
 
 	public static MAPElites<EvolveSolution> create(OpenEvolveConfig config, ObjectMapper mapper,
-			boolean restart, List<EvolveSolution> initialSolutions,
-			Map<UUID, Solution<EvolveSolution>> allSolutions, RestClient.Builder restBuilder,
+			List<EvolveSolution> initialSolutions, OpenAiApi openAiApi,
 			List<RepositoryListener<EvolveSolution>> listeners) {
 		var selConf = config.selection();
 		var random = selConf.random();
 		var bins = config.mapelites().bins();
 		var repository =
-				new DefaultRepository<>(config.comparator(), config.repository().populationSize(),
+				new DefaultPopulation<>(config.comparator(), config.repository().populationSize(),
 						config.repository().archiveSize(), config.repository().islands());
 		var structure = SolutionUtil.initPath(config.solution().filePattern(), null,
 				config.solution().path());
-		var solutionsJson = config.solution().path().getParent().resolve("solutions.jsonl");
-		var stateJson = config.solution().path().getParent().resolve("state.json");
-
 		var initial = new ArrayList<EvolveSolution>();
 		if (initialSolutions != null && !initialSolutions.isEmpty()) {
-			restart = true;
 			initial.addAll(initialSolutions);
-		} else if (!restart) {
-			initial.clear();
 		} else {
-			initial.add(new EvolveSolution(null, Instant.now(), structure.target(),
-					 null, Map.of(), Map.of(),
-					config.solution().fullRewrite()));
+			initial.add(new EvolveSolution(structure.target(), null, Map.of(),
+					Map.of("fullRewrite", config.solution().fullRewrite())));
 		}
-		var stateWriter = new StateWriter<EvolveSolution>(stateJson, mapper, restart);
-		if (stateWriter.getCurrentState() != null) {
-			repository.restore(stateWriter.getCurrentState().repository(), allSolutions);
-		}
-		repository.addListener(new SolutionWriter<>(solutionsJson, mapper));
 		if (listeners != null && !listeners.isEmpty()) {
 			for (var l : listeners) {
 				repository.addListener(l);
@@ -64,7 +45,7 @@ public class OpenEvolve {
 				config.solution().evalTimeout(), mapper);
 		var evolveFunction = new OpenEvolveFunction(repository,
 				new OpenEvolveAgent(config.prompts(),
-						new LLMEnsemble(random, config.llm(), restBuilder), random),
+						new LLMEnsemble(random, config.llm(), openAiApi), random),
 				config.selection().numberDiverse(), config.selection().numberTop());
 		var selection = new OpenEvolveSelection(repository, random, selConf.explorationRatio(),
 				selConf.exploitationRatio(), selConf.eliteSelectionRatio(),
@@ -87,7 +68,6 @@ public class OpenEvolve {
 				return super.getFeatureValue(feature, evolved, fitness);
 			}
 		};
-		mapelites.addListener(stateWriter);
 		return mapelites;
 	}
 }

@@ -1,5 +1,6 @@
 package openevolve.mapelites;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -11,9 +12,10 @@ import openevolve.mapelites.listener.MAPElitesListener;
 import openevolve.mapelites.listener.Listener;
 import openevolve.Constants;
 import openevolve.mapelites.FeatureScaler.ScaleMethod;
-import openevolve.mapelites.Repository.Island;
-import openevolve.mapelites.Repository.RepositoryState;
-import openevolve.mapelites.Repository.Solution;
+import openevolve.mapelites.Population.Island;
+import openevolve.mapelites.Population.PopulationState;
+import openevolve.mapelites.Population.Solution;
+import openevolve.mapelites.Population.MAPElitesMetadata;
 
 /**
  * Multi-dimensional Archive of Phenotypic Elites with Islands
@@ -35,13 +37,14 @@ public class MAPElites<T> {
 	private final int featureBins;
 	private final ScaleMethod featureScaleMethod;
 
-	private final Repository<T> repository;
+	private final Population<T> repository;
 	private final Migration<T> migration;
 	private final List<MAPElitesListener<T>> listeners = new ArrayList<>();
 	private int currentIteration = 1;
 	private boolean initialized = false;
+	private UUID runId;
 
-	public MAPElites(Repository<T> repository, Migration<T> migration,
+	public MAPElites(Population<T> repository, Migration<T> migration,
 			Function<T, Map<String, Object>> fitnessFunction,
 			Function<List<Solution<T>>, T> evolveOperator,
 			Supplier<List<T>> initialSolutionGenerator,
@@ -69,20 +72,16 @@ public class MAPElites<T> {
 		this.featureScaleMethod = featureScaleMethod;
 	}
 
-	public void setIteration(int iteration) {
-		this.currentIteration = iteration;
-	}
-
 	public void printArchive() {
 		// group by island
 		Map<Integer, List<Solution<T>>> groupedByIsland =
-				repository.getArchive().stream().collect(Collectors.groupingBy(Solution::islandId));
+				repository.getArchive().stream().collect(Collectors.groupingBy(s -> s.metadata().islandId()));
 		for (var group : groupedByIsland.entrySet()) {
 			int islandId = group.getKey();
 			List<Solution<T>> solutions = group.getValue();
 			System.out.println("=== Island " + islandId + " (size: " + solutions.size() + ") ===");
 			for (Solution<T> solution : solutions) {
-				var coords = solution.cellId();
+				var coords = solution.metadata().cellId();
 				System.out.println("Cell " + coords + " -> " + solution.solution() + " (fitness="
 						+ solution.fitness() + ")");
 			}
@@ -95,15 +94,15 @@ public class MAPElites<T> {
 
 	public void run(int iterations) {
 		LOG.trace("run called with iterations={} starting from currentIteration={}", iterations, currentIteration);
+		Listener.callAll(listeners, listener -> listener.onAlgorithmStart(this));
 		if (!initialized) {
-			Listener.callAll(listeners, listener -> listener.onAlgorithmStart(this));
 			LOG.trace("Initializing archive with initial solutions generator");
 			var initial = initialSolutionGenerator.get();
 			LOG.trace("Generated {} initial solutions", initial.size());
 			for (int i = 0; i < initial.size(); i++) {
 				var island = repository.findIslandById(i);
 				LOG.trace("Adding initial solution index={} to island={}", i, island != null ? island.id() : null);
-				addSolution(initial.get(i), island, 0);
+				addSolution(initial.get(i), null, island, 0);
 			}
 			if (repository.count() == 0) {
 				LOG.trace("No initial solutions were added to any archive - repository.count()==0");
@@ -135,16 +134,25 @@ public class MAPElites<T> {
 		}
 	}
 
-	public void reset(Map<String, Cell> grid, Map<String, FeatureScaler> featureStats, int iteration) {
-		LOG.trace("Resetting MAP-Elites state to iteration={} (clearing grid and featureStats)", iteration);
+	public void setRunId(UUID runId) {
+		this.runId = runId;
+	}
+
+	public UUID getRunId() {
+		return runId;
+	}
+
+	public MAPElites<T> reset(State state, UUID runId, List<Solution<T>> solutionsById) {
+		this.currentIteration = state.iteration();
+		LOG.trace("Resetting MAP-Elites state to iteration={} (clearing grid and featureStats)", currentIteration);
 		this.grid.clear();
-		this.grid.putAll(grid);
+		this.grid.putAll(state.grid());
 		this.featureStats.clear();
-		this.featureStats.putAll(featureStats);
-		this.currentIteration = iteration;
+		this.featureStats.putAll(state.featureStats());
 		this.initialized = true;
-		LOG.trace("Reset complete: grid.size={} featureStats.size={} currentIteration={}",
-				this.grid.size(), this.featureStats.size(), this.currentIteration);
+		this.runId = runId;
+		repository.restore(state.population(), solutionsById.stream().collect(Collectors.toMap(Solution::id, s -> s)));
+		return this;
 	}
 
 	public Map<String, Cell> getGrid() {
@@ -155,7 +163,7 @@ public class MAPElites<T> {
 		return Collections.unmodifiableMap(featureStats);
 	}
 
-	public RepositoryState getRepositoryState() {
+	public PopulationState getRepositoryState() {
 		return repository.snapshot();
 	}
 
@@ -173,7 +181,7 @@ public class MAPElites<T> {
 	}
 
 	public boolean addToGrid(Solution<T> newSolution) {
-		var coords = newSolution.cellId();
+		var coords = newSolution.metadata().cellId();
 		LOG.trace("Attempting to add solution id={} to cell={}", newSolution.id(), coords);
 		var cell = grid.get(coords);
 		var currentId = cell != null ? cell.solutionId() : null;
@@ -184,12 +192,12 @@ public class MAPElites<T> {
 		repository.save(newSolution);
 		if (isImprovement) {
 			var newCell = new Cell(coords, cell != null ? cell.trials() + 1 : 1,
-					cell != null ? cell.curiosity() : 0.0, newSolution.iteration(),
+					cell != null ? cell.curiosity() : 0.0, newSolution.metadata().iteration(),
 					newSolution.id());
 			grid.put(coords, newCell);
 			LOG.trace("Cell {} improved by solution id={}", coords, newSolution.id());
 			Listener.callAll(listeners, listener -> listener.onCellImproved(newSolution, current, newCell,
-					newSolution.iteration()));
+					newSolution.metadata().iteration()));
 			return true;
 		} else if (cell != null) {
 			var updatedCell = new Cell(cell.key(), cell.trials() + 1, cell.curiosity(),
@@ -197,7 +205,7 @@ public class MAPElites<T> {
 			grid.put(coords, updatedCell);
 			LOG.trace("Cell {} rejected new solution id={} (current solution id={})", coords, newSolution.id(), currentId);
 			Listener.callAll(listeners, listener -> listener.onCellRejected(newSolution, current, updatedCell,
-					newSolution.iteration()));
+					newSolution.metadata().iteration()));
 		} else {
 			LOG.trace("No cell existed for coords {} and solution id={} did not improve", coords, newSolution.id());
 		}
@@ -257,17 +265,18 @@ public class MAPElites<T> {
 			LOG.trace("Evolved result is null, skipping addSolution");
 			return;
 		}
-		var solution = addSolution(evolved, island, iteration);
+		var solution = addSolution(evolved, selected.get(0).id(), island, iteration);
 		LOG.trace("Solution added with id={} on island={}", solution.id(), island.id());
 		Listener.callAll(listeners, listener -> listener.onSolutionGenerated(solution, selected, iteration));
 	}
 
-	private Solution<T> addSolution(T evolved, Island island, int iteration) {
+	private Solution<T> addSolution(T evolved, UUID parentId, Island island, int iteration) {
 		LOG.trace("addSolution called for island={} iteration={}", island.id(), iteration);
 		var fitness = fitnessFunction.apply(evolved);
 		LOG.trace("Computed fitness for evolved candidate: {}", fitness);
 		var coords = calculateFeatureCoords(evolved, fitness);
-		var solution = new Solution<T>(UUID.randomUUID(), evolved, null, fitness, iteration, island.id(), coords);
+		var metadata = new MAPElitesMetadata(null, iteration, island.id(), coords);
+		var solution = new Solution<T>(UUID.randomUUID(), parentId, runId, Instant.now(), evolved, fitness, metadata);
 		LOG.trace("Constructed Solution id={} coords={}", solution.id(), Arrays.toString(coords));
 		var bestBefore = repository.best();
 		boolean improved = addToGrid(solution);
@@ -282,6 +291,10 @@ public class MAPElites<T> {
 
 	public record Cell(String key, int trials, double curiosity, int improveIter, UUID solutionId) {
 	}
+
+	public record State(UUID runId, int iteration, PopulationState population,
+            Map<String, Cell> grid, Map<String, FeatureScaler> featureStats) {
+    }
 
 	private static void trace(String format, Object... args) {
 		if (LOG.isTraceEnabled()) {

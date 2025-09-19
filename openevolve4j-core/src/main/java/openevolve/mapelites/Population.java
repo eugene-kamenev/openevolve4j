@@ -1,15 +1,17 @@
 package openevolve.mapelites;
 
+import java.time.Instant;
 import java.util.Arrays;
-import java.util.HashSet;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 
-public interface Repository<T> {
-	
+public interface Population<T> {
+
 	void save(Solution<T> solution);
 
 	void delete(UUID id);
@@ -39,37 +41,47 @@ public interface Repository<T> {
 	List<Island> findAllIslands();
 
 	// Snapshot/restore support
-    RepositoryState snapshot();
-    void restore(RepositoryState state, Map<UUID, Solution<T>> allSolutions);
+	PopulationState snapshot();
 
-    // Portable DTOs for checkpointing
-    public record RepositoryState(
-        List<UUID> solutions,
-        Set<UUID> archive,
-        List<List<UUID>> islands,
-        Integer currentIslandId
-    ) {}
+	void restore(PopulationState state, Map<UUID, Solution<T>> allSolutions);
 
-	public record Solution<T>(UUID id, T solution, UUID migratedFrom, Map<String, Object> fitness,
-			int iteration, int islandId, int[] cell, String cellId) {
+	// Portable DTOs for checkpointing
+	public record PopulationState(List<UUID> solutions, Set<UUID> archive, List<List<UUID>> islands, Integer currentIslandId) {
+	}
 
-		public Solution(UUID id, T solution, UUID migratedFrom, Map<String, Object> fitness,
-				int iteration, int islandId, int[] cell) {
-			this(id, solution, migratedFrom, fitness, iteration, islandId, cell, cellToKey(cell));
+	public record MAPElitesMetadata(
+			UUID migratedFrom,
+			int iteration,
+			int islandId,
+			int[] cell,
+			String cellId) {
+		public MAPElitesMetadata(UUID migratedFrom, int iteration, int islandId, int[] cell) {
+			this(migratedFrom, iteration, islandId, cell, Solution.cellToKey(cell));
 		}
+
+		public MAPElitesMetadata {
+			Objects.requireNonNull(cell, "cell must not be null");
+			if (cell.length == 0) {
+				throw new IllegalArgumentException("cell must not be empty");
+			}
+			if (cellId == null || cellId.isEmpty()) {
+				cellId = Solution.cellToKey(cell);
+			}
+		}
+	}
+
+	public record Solution<T>(
+			UUID id, UUID parentId, UUID runId, Instant dateCreated, T solution,
+			Map<String, Object> fitness, MAPElitesMetadata metadata) {
 
 		public Solution {
 			Objects.requireNonNull(id, "id must not be null");
 			Objects.requireNonNull(solution, "solution must not be null");
+			Objects.requireNonNull(metadata, "metadata must not be null");
 			if (fitness == null || fitness.isEmpty()) {
 				throw new IllegalArgumentException("fitness must not be null or empty");
 			}
-			if (cell == null || cell.length == 0) {
-				throw new IllegalArgumentException("cell must not be null or empty");
-			}
-			if (cellId == null || cellId.trim().isEmpty()) {
-				throw new IllegalArgumentException("cellId must not be null or empty");
-			}
+			
 		}
 
 		public static String cellToKey(int[] cell) {
@@ -78,8 +90,8 @@ public interface Repository<T> {
 		}
 
 		public Solution<T> copy(int targetIslandId) {
-			return new Solution<T>(UUID.randomUUID(), solution(), id(), fitness(), iteration(),
-					targetIslandId, cell());
+			return new Solution<T>(UUID.randomUUID(), parentId(), runId(), Instant.now(), solution(), fitness(),
+					new MAPElitesMetadata(id(), metadata().iteration(), targetIslandId, metadata().cell()));
 		}
 
 		@Override
@@ -109,20 +121,10 @@ public interface Repository<T> {
 		}
 	}
 
-	public static class Island {
-		private final int id;
-		private final Set<UUID> archive = new HashSet<>();
-
+	public record Island(int id, Set<UUID> archive) {
+		
 		public Island(int id) {
-			this.id = id;
-		}
-
-		public int id() {
-			return id;
-		}
-
-		public Set<UUID> archive() {
-			return archive;
+			this(id, new TreeSet<>(Comparator.naturalOrder()));
 		}
 
 		public int size() {

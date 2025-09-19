@@ -5,8 +5,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import openevolve.mapelites.MAPElites;
 import openevolve.mapelites.MAPElites.Cell;
-import openevolve.mapelites.Repository.Island;
-import openevolve.mapelites.Repository.Solution;
+import openevolve.mapelites.Population.Island;
+import openevolve.mapelites.Population.Solution;
 
 public class MAPElitesLoggingListener<T> implements MAPElitesListener<T> {
 

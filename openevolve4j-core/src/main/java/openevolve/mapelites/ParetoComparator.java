@@ -3,7 +3,7 @@ package openevolve.mapelites;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.function.Function;
-import openevolve.mapelites.Repository.Solution;
+import openevolve.mapelites.Population.Solution;
 
 public class ParetoComparator<T> implements Comparator<Solution<T>> {
 

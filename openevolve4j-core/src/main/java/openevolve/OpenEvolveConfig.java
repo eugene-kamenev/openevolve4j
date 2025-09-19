@@ -19,21 +19,37 @@ import com.fasterxml.jackson.databind.cfg.ContextAttributes;
 import openevolve.mapelites.ParetoComparator;
 import openevolve.util.Util;
 
-public record OpenEvolveConfig(Solution solution, Selection selection, Migration migration,
-		Repository repository, MAPElites mapelites, LLM llm, Map<String, Boolean> metrics,
-		Path promptPath,
-		@JsonIgnore Comparator<openevolve.mapelites.Repository.Solution<EvolveSolution>> comparator,
-		@JsonIgnore Predicate<openevolve.mapelites.Repository.Solution<EvolveSolution>> stopCondition,
+public record OpenEvolveConfig(
+		Solution solution, Selection selection, Migration migration,
+		Repository repository, MAPElites mapelites, LLM llm, Map<String, Boolean> metrics, Path promptPath,
+		@JsonIgnore Comparator<openevolve.mapelites.Population.Solution<EvolveSolution>> comparator,
+		@JsonIgnore Predicate<openevolve.mapelites.Population.Solution<EvolveSolution>> stopCondition,
 		@JsonIgnore Map<String, List<PromptTemplate>> prompts) {
 
 	public OpenEvolveConfig {
 		if (metrics == null || metrics.isEmpty()) {
 			throw new IllegalArgumentException("Metrics must not be null or empty");
 		}
+		if (solution == null) {
+			throw new IllegalArgumentException("Solution config must not be null");
+		}
+		if (selection == null) {
+			throw new IllegalArgumentException("Selection config must not be null");
+		}
+		if (migration == null) {
+			throw new IllegalArgumentException("Migration config must not be null");
+		}
+		if (repository == null) {
+			throw new IllegalArgumentException("Repository config must not be null");
+		}
+		if (mapelites == null) {
+			throw new IllegalArgumentException("MAP-Elites config must not be null");
+		}
 		comparator = comparator == null ? defaultComparator(metrics) : comparator;
 		stopCondition = stopCondition == null ? _ -> false : stopCondition;
+		promptPath = promptPath != null ? solution.workspace().resolve(promptPath) : null;
 		prompts = promptPath != null
-				? Util.templatesFromPath(solution.workspace().resolve(promptPath),
+				? Util.templatesFromPath(promptPath,
 						prompts != null ? prompts : Constants.DEFAULT_PROMPTS)
 				: Constants.DEFAULT_PROMPTS;
 	}
@@ -50,7 +66,7 @@ public record OpenEvolveConfig(Solution solution, Selection selection, Migration
 	}
 
 	public record Solution(Path workspace, Path path, Path runner, Duration evalTimeout,
-			Boolean fullRewrite, String language, String pattern, Pattern filePattern) {
+			Boolean fullRewrite, String pattern, @JsonIgnore Pattern filePattern) {
 		public Solution {
 			Objects.requireNonNull(workspace);
 			path = workspace.resolve(path != null ? path : Path.of("solution"));
@@ -58,7 +74,6 @@ public record OpenEvolveConfig(Solution solution, Selection selection, Migration
 			evalTimeout = evalTimeout == null ? Duration.ofMinutes(1) : evalTimeout;
 			pattern = pattern == null || pattern.isEmpty() ? ".*\\.py$" : pattern;
 			filePattern = filePattern == null ? Pattern.compile(pattern) : filePattern;
-			language = language == null || language.isEmpty() ? "python" : language;
 			fullRewrite = fullRewrite == null ? true : fullRewrite;
 		}
 	}
@@ -119,7 +134,6 @@ public record OpenEvolveConfig(Solution solution, Selection selection, Migration
 	}
 
 	public record MAPElites(Integer numIterations, Integer bins, List<String> dimensions) {
-
 		public MAPElites {
 			numIterations = numIterations == null ? 100 : numIterations;
 			bins = bins == null ? 10 : bins;
@@ -134,19 +148,16 @@ public record OpenEvolveConfig(Solution solution, Selection selection, Migration
 		}
 	}
 
-	public record LLM(@JsonIgnore Map<String, List<PromptTemplate>> prompts,
-			List<OpenAiChatOptions> models, String apiUrl, String apiKey) {
+	public record LLM(List<OpenAiChatOptions> models) {
 		public LLM {
 			Objects.requireNonNull(models);
 			if (models.isEmpty()) {
 				throw new IllegalArgumentException("Models must not be empty");
 			}
-			Objects.requireNonNull(apiUrl);
-			Objects.requireNonNull(apiKey);
 		}
 	}
 
-	private static Comparator<openevolve.mapelites.Repository.Solution<EvolveSolution>> defaultComparator(
+	private static Comparator<openevolve.mapelites.Population.Solution<EvolveSolution>> defaultComparator(
 			Map<String, Boolean> metrics) {
 		var names = new ArrayList<String>();
 		var maximize = new boolean[metrics.size()];

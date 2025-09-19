@@ -9,18 +9,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import openevolve.mapelites.listener.MAPElitesListener;
-import openevolve.mapelites.DefaultRepository;
+import openevolve.mapelites.DefaultPopulation;
 import openevolve.mapelites.MAPElites;
 import openevolve.mapelites.Migration;
-import openevolve.mapelites.Repository;
+import openevolve.mapelites.Population;
 import openevolve.mapelites.FeatureScaler.ScaleMethod;
-import openevolve.mapelites.Repository.Solution;
+import openevolve.mapelites.Population.Solution;
 
 @DisplayName("MAPElites Integration Tests")
 public class MAPElitesTest {
 
-    private Comparator<Repository.Solution<String>> comparator;
-    private DefaultRepository<String> repository;
+    private Comparator<Population.Solution<String>> comparator;
+    private DefaultPopulation<String> repository;
     private Migration<String> migration;
 
     @BeforeEach
@@ -29,7 +29,7 @@ public class MAPElitesTest {
             (Double) a.fitness().get("fitness"),
             (Double) b.fitness().get("fitness")
         );
-        repository = new DefaultRepository<>(comparator, 100, 100, 2);
+        repository = new DefaultPopulation<>(comparator, 100, 100, 2);
         migration = new Migration<>(100, 0.1, repository);
     }
 
@@ -44,11 +44,11 @@ public class MAPElitesTest {
         };
 
         // evolve operator: pick first parent's solution (string) and return as new
-        java.util.function.Function<List<Repository.Solution<String>>, String> evolve =
+        java.util.function.Function<List<Population.Solution<String>>, String> evolve =
             parents -> parents.get(0).solution();
 
         // selection: pick any from island archive
-        java.util.function.Function<Repository.Island, List<Repository.Solution<String>>> selection =
+        java.util.function.Function<Population.Island, List<Population.Solution<String>>> selection =
             island -> repository.findByIslandId(island.id());
 
         // initial solution generator: produce two simple string-numbered solutions
@@ -66,7 +66,7 @@ public class MAPElitesTest {
             }
 
             @Override
-            public void onAfterIteration(Repository.Island island, int iteration, MAPElites<String> mapElites) {
+            public void onAfterIteration(Population.Island island, int iteration, MAPElites<String> mapElites) {
                 afterIter.set(true);
             }
         });
@@ -84,7 +84,7 @@ public class MAPElitesTest {
     @DisplayName("Test MAPElites with complex fitness landscape")
     public void testComplexFitnessLandscape() {
         // Create new repository for Double type
-        Repository<Double> doubleRepo = new DefaultRepository<>(
+        Population<Double> doubleRepo = new DefaultPopulation<>(
             (a, b) -> Double.compare((Double) a.fitness().get("fitness"), (Double) b.fitness().get("fitness")),
             100, 50, 3);
         Migration<Double> doubleMigration = new Migration<>(50, 0.1, doubleRepo);
@@ -107,7 +107,7 @@ public class MAPElitesTest {
         };
 
         // Selection: tournament selection
-        java.util.function.Function<Repository.Island, List<Solution<Double>>> selection = island -> {
+        java.util.function.Function<Population.Island, List<Solution<Double>>> selection = island -> {
             var solutions = doubleRepo.findByIslandId(island.id());
             if (solutions.size() <= 2) return solutions;
             
@@ -157,7 +157,7 @@ public class MAPElitesTest {
         java.util.function.Function<List<Solution<String>>, String> evolve =
             _ -> "evolved";
 
-        java.util.function.Function<Repository.Island, List<Solution<String>>> selection =
+        java.util.function.Function<Population.Island, List<Solution<String>>> selection =
             island -> repository.findByIslandId(island.id());
 
         // Empty initial generation
@@ -182,7 +182,7 @@ public class MAPElitesTest {
         java.util.function.Function<List<Solution<String>>, String> evolve =
             _ -> "evolved";
 
-        java.util.function.Function<Repository.Island, List<Solution<String>>> selection =
+        java.util.function.Function<Population.Island, List<Solution<String>>> selection =
             _ -> List.of();
 
         java.util.function.Supplier<List<String>> initialGen = () -> List.of("initial");
@@ -199,7 +199,7 @@ public class MAPElitesTest {
                 listener1Called.set(true);
             }
             @Override
-            public void onAfterIteration(Repository.Island island, int iteration, MAPElites<String> mapElites) {}
+            public void onAfterIteration(Population.Island island, int iteration, MAPElites<String> mapElites) {}
         };
 
         MAPElitesListener<String> listener2 = new MAPElitesListener<String>() {
@@ -208,7 +208,7 @@ public class MAPElitesTest {
                 listener2Called.set(true);
             }
             @Override
-            public void onAfterIteration(Repository.Island island, int iteration, MAPElites<String> mapElites) {}
+            public void onAfterIteration(Population.Island island, int iteration, MAPElites<String> mapElites) {}
         };
 
         mapElites.addListener(listener1);
@@ -236,7 +236,7 @@ public class MAPElitesTest {
             return String.valueOf(Double.parseDouble(parents.get(0).solution()) + 0.1);
         };
 
-        java.util.function.Function<Repository.Island, List<Solution<String>>> selection =
+        java.util.function.Function<Population.Island, List<Solution<String>>> selection =
             island -> repository.findByIslandId(island.id());
 
         java.util.function.Supplier<List<String>> initialGen = () -> List.of("1.0", "2.0");
@@ -263,7 +263,7 @@ public class MAPElitesTest {
         java.util.function.Function<List<Solution<String>>, String> evolve =
             _ -> "evolved";
 
-        java.util.function.Function<Repository.Island, List<Solution<String>>> selection =
+        java.util.function.Function<Population.Island, List<Solution<String>>> selection =
             _ -> List.of();
 
         java.util.function.Supplier<List<String>> initialGen = () -> List.of("initial");
@@ -277,7 +277,7 @@ public class MAPElitesTest {
             public void onAlgorithmStart(MAPElites<String> mapElites) {}
             
             @Override
-            public void onAfterIteration(Repository.Island island, int iteration, MAPElites<String> mapElites) {
+            public void onAfterIteration(Population.Island island, int iteration, MAPElites<String> mapElites) {
                 maxIteration[0] = Math.max(maxIteration[0], iteration);
             }
         });
@@ -304,7 +304,7 @@ public class MAPElitesTest {
             return "error"; // Will cause fitness function to throw
         };
 
-        java.util.function.Function<Repository.Island, List<Solution<String>>> selection =
+        java.util.function.Function<Population.Island, List<Solution<String>>> selection =
             island -> repository.findByIslandId(island.id());
 
         java.util.function.Supplier<List<String>> initialGen = () -> List.of("normal");
@@ -328,7 +328,7 @@ public class MAPElitesTest {
         java.util.function.Function<List<Solution<String>>, String> evolve =
             _ -> "1.0";
 
-        java.util.function.Function<Repository.Island, List<Solution<String>>> selection =
+        java.util.function.Function<Population.Island, List<Solution<String>>> selection =
             _ -> List.of();
 
         java.util.function.Supplier<List<String>> initialGen = () -> List.of("1.0", "2.0");

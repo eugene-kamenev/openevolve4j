@@ -9,14 +9,14 @@ import java.util.function.Supplier;
 
 import openevolve.Constants;
 import openevolve.mapelites.listener.MAPElitesLoggingListener;
-import openevolve.mapelites.DefaultRepository;
+import openevolve.mapelites.DefaultPopulation;
 import openevolve.mapelites.MAPElites;
 import openevolve.mapelites.Migration;
 import openevolve.mapelites.ParetoComparator;
-import openevolve.mapelites.Repository;
+import openevolve.mapelites.Population;
 import openevolve.mapelites.FeatureScaler.ScaleMethod;
-import openevolve.mapelites.Repository.Island;
-import openevolve.mapelites.Repository.Solution;
+import openevolve.mapelites.Population.Island;
+import openevolve.mapelites.Population.Solution;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -67,7 +67,7 @@ public class DTLZ2Test {
 
         ParetoComparator<double[]> pareto = new ParetoComparator<>(maximize, objectiveExtractor);
 
-        Repository<double[]> repository = new DefaultRepository<>(pareto, POPULATION_SIZE,
+        Population<double[]> repository = new DefaultPopulation<>(pareto, POPULATION_SIZE,
                 ARCHIVE_SIZE, NUM_ISLANDS);
 
         // Features: all objectives + diversity
@@ -134,7 +134,7 @@ public class DTLZ2Test {
         };
         ParetoComparator<double[]> pareto = new ParetoComparator<>(maximize, objectiveExtractor);
 
-        Repository<double[]> repository = new DefaultRepository<>(pareto, POPULATION_SIZE,
+        Population<double[]> repository = new DefaultPopulation<>(pareto, POPULATION_SIZE,
                 ARCHIVE_SIZE, NUM_ISLANDS);
 
         List<String> featureDims = new ArrayList<>();
@@ -253,7 +253,7 @@ public class DTLZ2Test {
     }
 
     private Function<Island, List<Solution<double[]>>> createSelectionFunction(
-            Repository<double[]> repository) {
+            Population<double[]> repository) {
         return island -> {
             List<UUID> ids = new ArrayList<>(island.archive());
             if (ids.isEmpty())

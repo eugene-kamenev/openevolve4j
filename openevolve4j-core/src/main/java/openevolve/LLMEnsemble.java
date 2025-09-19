@@ -11,7 +11,6 @@ import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.retry.support.RetryTemplate;
-import org.springframework.web.client.RestClient;
 import openevolve.OpenEvolveConfig.LLM;
 
 /**
@@ -23,14 +22,12 @@ public class LLMEnsemble {
 	private final String[] keys;
 	private final Random random;
 
-	public LLMEnsemble(Random random, LLM llm, RestClient.Builder restBuilder) {
-		var openAiApi = OpenAiApi.builder().restClientBuilder(restBuilder).baseUrl(llm.apiUrl())
-				.apiKey(llm.apiKey());
+	public LLMEnsemble(Random random, LLM llm, OpenAiApi openAiApi) {
 		this.random = random;
 		this.keys = llm.models().stream().map(OpenAiChatOptions::getModel).toArray(String[]::new);
 		for (var config : llm.models()) {
 			var chatModel =
-					OpenAiChatModel.builder().openAiApi(openAiApi.build())
+					OpenAiChatModel.builder().openAiApi(openAiApi)
 							.retryTemplate(RetryTemplate.builder()
 									.retryOn(Throwable.class)
 									.exponentialBackoff(Duration.ofSeconds(10), 2,

@@ -6,14 +6,14 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import openevolve.Constants;
 import openevolve.mapelites.listener.MAPElitesLoggingListener;
-import openevolve.mapelites.DefaultRepository;
+import openevolve.mapelites.DefaultPopulation;
 import openevolve.mapelites.MAPElites;
 import openevolve.mapelites.Migration;
 import openevolve.mapelites.ParetoComparator;
-import openevolve.mapelites.Repository;
+import openevolve.mapelites.Population;
 import openevolve.mapelites.FeatureScaler.ScaleMethod;
-import openevolve.mapelites.Repository.Island;
-import openevolve.mapelites.Repository.Solution;
+import openevolve.mapelites.Population.Island;
+import openevolve.mapelites.Population.Solution;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.BeforeEach;
@@ -66,7 +66,7 @@ public class ZDT1Test {
         ParetoComparator<double[]> paretoComparator = new ParetoComparator<>(maximize, objectiveExtractor);
 
         // Create repository with Pareto comparator
-        Repository<double[]> repository = new DefaultRepository<>(
+        Population<double[]> repository = new DefaultPopulation<>(
             paretoComparator, POPULATION_SIZE, ARCHIVE_SIZE, NUM_ISLANDS
         );
 
@@ -131,7 +131,7 @@ public class ZDT1Test {
         
         ParetoComparator<double[]> paretoComparator = new ParetoComparator<>(maximize, objectiveExtractor);
 
-        Repository<double[]> repository = new DefaultRepository<>(
+        Population<double[]> repository = new DefaultPopulation<>(
             paretoComparator, 100, 50, 2
         );
 
@@ -180,7 +180,7 @@ public class ZDT1Test {
         
         ParetoComparator<double[]> paretoComparator = new ParetoComparator<>(maximize, objectiveExtractor);
 
-        Repository<double[]> repository = new DefaultRepository<>(
+        Population<double[]> repository = new DefaultPopulation<>(
             paretoComparator, 50, 30, 2
         );
 
@@ -305,7 +305,7 @@ public class ZDT1Test {
         };
     }
 
-    private Function<Island, List<Solution<double[]>>> createZDT1SelectionFunction(Repository<double[]> repository) {
+    private Function<Island, List<Solution<double[]>>> createZDT1SelectionFunction(Population<double[]> repository) {
         return island -> {
             List<UUID> archive = new ArrayList<>(island.archive());
             if (archive.isEmpty()) {
@@ -358,7 +358,7 @@ public class ZDT1Test {
         return mutated;
     }
 
-    private Solution<double[]> tournamentSelection(List<UUID> archive, Repository<double[]> repository, int tournamentSize) {
+    private Solution<double[]> tournamentSelection(List<UUID> archive, Population<double[]> repository, int tournamentSize) {
         List<Solution<double[]>> tournament = new ArrayList<>();
         for (int i = 0; i < Math.min(tournamentSize, archive.size()); i++) {
             UUID id = archive.get(random.nextInt(archive.size()));

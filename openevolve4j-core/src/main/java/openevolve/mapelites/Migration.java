@@ -4,17 +4,18 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import openevolve.mapelites.Repository.Island;
-import openevolve.mapelites.Repository.Solution;
+import openevolve.mapelites.Population.Island;
+import openevolve.mapelites.Population.Solution;
+import openevolve.mapelites.Population.MAPElitesMetadata;;
 
 public class Migration<T> {
     private final int migrationInterval;
     private final List<Integer> islandGenerations;
     private final double migrationRate;
-    private final Repository<T> repository;
+    private final Population<T> repository;
     private int lastMigrationGeneration = 0;
 
-    public Migration(int migrationInterval, double migrationRate, Repository<T> repository) {
+    public Migration(int migrationInterval, double migrationRate, Population<T> repository) {
         Objects.requireNonNull(repository, "Repository must not be null");
         if (migrationInterval <= 0) {
             throw new IllegalArgumentException("Migration interval must be positive");
@@ -63,18 +64,19 @@ public class Migration<T> {
             int[] targetIslands = (left == right) ? new int[] { left } : new int[] { left, right };
 
             for (var migrant : migrants) {
-                if (migrant.migratedFrom() != null) {
+                if (migrant.metadata().migratedFrom() != null) {
                     continue; // only migrate originals
                 }
                 for (int targetIsland : targetIslands) {
+                    var metadata = new MAPElitesMetadata(migrant.id(), iteration, targetIsland, migrant.metadata().cell());
                     var copy = new Solution<T>(
                             UUID.randomUUID(),
+                            migrant.parentId(),
+                            migrant.runId(),
+                            migrant.dateCreated(),
                             migrant.solution(),
-                            migrant.id(),
                             migrant.fitness(),
-                            iteration,
-                            targetIsland,
-                            migrant.cell()
+                            metadata
                     );
                     repository.save(copy);
                 }

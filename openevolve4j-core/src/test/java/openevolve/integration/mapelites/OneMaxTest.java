@@ -8,13 +8,13 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import openevolve.Constants;
 import openevolve.mapelites.listener.MAPElitesLoggingListener;
-import openevolve.mapelites.DefaultRepository;
+import openevolve.mapelites.DefaultPopulation;
 import openevolve.mapelites.MAPElites;
 import openevolve.mapelites.Migration;
-import openevolve.mapelites.Repository;
+import openevolve.mapelites.Population;
 import openevolve.mapelites.FeatureScaler.ScaleMethod;
-import openevolve.mapelites.Repository.Island;
-import openevolve.mapelites.Repository.Solution;
+import openevolve.mapelites.Population.Island;
+import openevolve.mapelites.Population.Solution;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.BeforeEach;
@@ -49,7 +49,7 @@ public class OneMaxTest {
         };
 
         // Create repository
-        Repository<String> repository = new DefaultRepository<>(
+        Population<String> repository = new DefaultPopulation<>(
             comparator, POPULATION_SIZE, ARCHIVE_SIZE, NUM_ISLANDS
         );
 
@@ -119,7 +119,7 @@ public class OneMaxTest {
             return Double.compare(fitnessA, fitnessB);
         };
 
-        Repository<String> repository = new DefaultRepository<>(
+        Population<String> repository = new DefaultPopulation<>(
             comparator, 50, 25, 2
         );
 
@@ -162,7 +162,7 @@ public class OneMaxTest {
             return Double.compare(diversityA, diversityB);
         };
 
-        Repository<String> repository = new DefaultRepository<>(
+        Population<String> repository = new DefaultPopulation<>(
             comparator, 30, 15, 2
         );
 
@@ -266,7 +266,7 @@ public class OneMaxTest {
             .collect(Collectors.toList());
     }
 
-    private Function<Island, List<Solution<String>>> createSelectionFunction(Repository<String> repository) {
+    private Function<Island, List<Solution<String>>> createSelectionFunction(Population<String> repository) {
         return island -> {
             List<UUID> archive = new ArrayList<>(island.archive());
             if (archive.isEmpty()) {
