@@ -4,9 +4,27 @@ spring:
     name: "openevolve4j-web"
   main:
     web-application-type: "reactive"
+  liquibase:
+    enabled: true
+    change-log: classpath:/db/changelog/changelog.yml
+    url: 'jdbc:postgresql://192.168.50.99:5432/evolutions'
+    user: postgres
+    password: postgres
+  r2dbc:
+    url: 'r2dbc:postgresql://192.168.50.99:5432/evolutions'
+    username: postgres
+    password: postgres
+    pool:
+      enabled: true
+      initial-size: 1
+      max-size: 2
+---
 server:
   port: 7070
 
 ---
 openevolve:
+  liteLlm:
+    apiUrl: http://192.168.50.99:4000
+    apiKey: sk-9DzvwVXmpXKAcoWTgmZnRg
   path: /home/ubuntu/IdeaProjects/openevolve4j/openevolve4j-core/src/test/resources/openevolve

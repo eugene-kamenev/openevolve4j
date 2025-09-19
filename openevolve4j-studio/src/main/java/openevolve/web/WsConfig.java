@@ -6,14 +6,16 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.web.reactive.HandlerMapping;
+import org.springframework.web.reactive.config.CorsRegistry;
 import org.springframework.web.reactive.config.EnableWebFlux;
+import org.springframework.web.reactive.config.WebFluxConfigurer;
 import org.springframework.web.reactive.handler.SimpleUrlHandlerMapping;
 import org.springframework.web.reactive.socket.WebSocketHandler;
 import org.springframework.web.reactive.socket.server.support.WebSocketHandlerAdapter;
 
 @EnableWebFlux
 @Configuration
-public class WsConfig {
+public class WsConfig implements WebFluxConfigurer {
 
 	@Bean
     public HandlerMapping handlerMapping(WsHandler wsHandler) {
@@ -28,5 +30,13 @@ public class WsConfig {
     @Bean
     public WebSocketHandlerAdapter handlerAdapter() {
         return new WebSocketHandlerAdapter();
+    }
+
+    @Override
+    public void addCorsMappings(CorsRegistry corsRegistry) {
+        corsRegistry.addMapping("/**")
+          .allowedOrigins("*")
+          .allowedMethods("*")
+          .maxAge(3600);
     }
 }

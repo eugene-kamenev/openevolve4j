@@ -16,7 +16,7 @@ import reactor.core.publisher.Sinks;
 public class EventBus implements DisposableBean {
 
     public final Sinks.Many<Event<? extends Output>> outputSink =
-            Sinks.many().multicast().directBestEffort();
+            Sinks.many().multicast().onBackpressureBuffer();
     public final Flux<Event<? extends Output>> outputEventStream = outputSink.asFlux().share();
 
     private final ObjectReader eventReader;

@@ -1,0 +1,8 @@
+databaseChangeLog:
+  #- include:
+  #    file: includes/sql/oauth2_authorizations.sql
+  #    relativeToChangelogFile: true
+  - includeAll:
+      path: includes
+      endsWithFilter: '.yml'
+      relativeToChangelogFile: true

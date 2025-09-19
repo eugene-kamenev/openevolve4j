@@ -1,0 +1,179 @@
+databaseChangeLog:
+  - changeSet:
+      id: 20250915-0-pgcrypto
+      author: openevolve
+      changes:
+        - sql:
+            dbms: postgresql
+            sql: "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+  - changeSet:
+      id: 20250915-1-initial
+      author: openevolve
+      changes:
+        # evolution_problem
+        - createTable:
+            tableName: evolution_problem
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: config
+                  type: JSONB
+        - addUniqueConstraint:
+            tableName: evolution_problem
+            columnNames: name
+            constraintName: uq_evolution_problem_name
+
+        - createTable:
+            tableName: llm_model
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: varchar(255)
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: llm_model
+            columnNames: name
+            constraintName: uq_llm_model_name
+            
+        # evolution_run
+        - createTable:
+            tableName: evolution_run
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: problem_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    referencedTableName: evolution_problem
+                    referencedColumnNames: id
+                    foreignKeyName: fk_run_problem
+              - column:
+                  name: date_created
+                  type: TIMESTAMPTZ
+                  defaultValueComputed: NOW()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: config
+                  type: JSONB
+
+        # evolution_state
+        - createTable:
+            tableName: evolution_state
+            columns:
+              - column:
+                  name: run_id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+                    referencedTableName: evolution_run
+                    referencedColumnNames: id
+                    foreignKeyName: fk_state_run
+              - column:
+                  name: date_created
+                  type: TIMESTAMPTZ
+                  defaultValueComputed: NOW()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: state
+                  type: JSONB
+
+        # solution
+        - createTable:
+            tableName: solution
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: parent_id
+                  type: UUID
+                  constraints:
+                    referencedTableName: solution
+                    referencedColumnNames: id
+                    foreignKeyName: fk_solution_parent
+              - column:
+                  name: run_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    referencedTableName: evolution_run
+                    referencedColumnNames: id
+                    foreignKeyName: fk_solution_run
+              - column:
+                  name: problem_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    referencedTableName: evolution_problem
+                    referencedColumnNames: id
+                    foreignKeyName: fk_solution_problem
+              - column:
+                  name: date_created
+                  type: TIMESTAMPTZ
+                  defaultValueComputed: NOW()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: solution
+                  type: JSONB
+              - column:
+                  name: fitness
+                  type: JSONB
+              - column:
+                  name: metadata
+                  type: JSONB
+
+        # Indexes
+        - createIndex:
+            tableName: evolution_run
+            columns:
+              - column:
+                  name: problem_id
+            indexName: idx_run_problem
+        - createIndex:
+            tableName: evolution_state
+            columns:
+              - column:
+                  name: run_id
+            indexName: idx_state_run
+        - createIndex:
+            tableName: solution
+            columns:
+              - column:
+                  name: run_id
+            indexName: idx_solution_run
+        - createIndex:
+            tableName: solution
+            columns:
+              - column:
+                  name: parent_id
+            indexName: idx_solution_parent

@@ -1,23 +1,17 @@
 package openevolve.events;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import org.springframework.context.ApplicationContext;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import openevolve.EvolveSolution;
 import openevolve.OpenEvolveConfig;
-import openevolve.mapelites.Repository.Solution;
-import openevolve.service.CommandService;
-import openevolve.service.ConfigService;
-import openevolve.service.OpenEvolveService;
+import openevolve.mapelites.MAPElites.State;
+import openevolve.mapelites.Population.Solution;
 import reactor.core.publisher.Mono;
-
-import static reactor.function.TupleUtils.function;
 
 public record Event<T extends Event.Payload>(String id, T payload) {
 
@@ -39,7 +33,7 @@ public record Event<T extends Event.Payload>(String id, T payload) {
 	public record Solutions(String id, List<Solution<EvolveSolution>> solutions, UUID bestId) implements Output {
 	}
 
-	public record OutputEvolutionEvent<T extends EvolutionEvent>(String taskId, T event)
+	public record OutputEvolutionEvent<T extends EvolutionEvent>(UUID evolutionProblemId, UUID runId, T event)
 			implements Output {
 	}
 
@@ -76,183 +70,15 @@ public record Event<T extends Event.Payload>(String id, T payload) {
 				implements EvolutionEvent {
 		}
 
-		public record IterationDone(int iteration) implements EvolutionEvent {
+		public record IterationDone(int iteration, State state) implements EvolutionEvent {
 		}
 	}
 
-	public static class GetSolutions extends Input<Solutions> {
-		private String id;
-
-		@Override
-		public Mono<Solutions> get() {
-			return getBean(ConfigService.class).map(s -> new Solutions(id, s.getSolutions(id), s.getBestSolution(id).map(Solution::id).orElse(null)));
-		}
-
-		public String getId() {
-			return id;
-		}
-
-		public void setId(String id) {
-			this.id = id;
-		}
-	}
-
-	// Input commands
-	public static class Connect extends Input<Connected> {
-		@Override
-		public Mono<Connected> get() {
-			return getBean(CommandService.class).map(c -> c.connect());
-		}
-	}
-	public static class Start extends Input<Started> {
-		private String id;
-		private boolean restart;
-		private List<UUID> initialSolutions;
-
-		@Override
-		public Mono<Started> get() {
-			return Mono.zip(getBean(OpenEvolveService.class), getBean(ConfigService.class))
-					.flatMap(function((openEvolveService, configService) -> {
-						var solutions = configService.getSolutions(id);
-						var solutionsById =
-								solutions.stream().collect(Collectors.toMap(Solution::id, s -> s));
-						var initial = new ArrayList<EvolveSolution>();
-						if (initialSolutions != null && !initialSolutions.isEmpty()) {
-							initial.addAll(solutions.stream()
-									.filter(s -> initialSolutions.contains(s.id()))
-									.map(s -> s.solution()).toList());
-						}
-						return openEvolveService.create(id, configService.findById(id), restart,
-								initial, solutionsById).thenReturn(new Started(id));
-					}));
-		}
-
-		public void setInitialSolutions(List<UUID> initialSolutions) {
-			this.initialSolutions = initialSolutions;
-		}
-
-		public List<UUID> getInitialSolutions() {
-			return initialSolutions;
-		}
-
-		public boolean getRestart() {
-			return restart;
-		}
-
-		public void setRestart(boolean restart) {
-			this.restart = restart;
-		}
-
-		public String getId() {
-			return id;
-		}
-
-		public void setId(String id) {
-			this.id = id;
-		}
-	}
-
-	public static class Stop extends Input<Stopped> {
-		private String id;
-
-		@Override
-		public Mono<Stopped> get() {
-			return getBean(OpenEvolveService.class)
-					.flatMap(s -> s.stopProcess(id).thenReturn(new Stopped(id)));
-		}
-
-		public String getId() {
-			return id;
-		}
-
-		public void setId(String id) {
-			this.id = id;
-		}
-	}
-
-	public static class CreateConfig extends Input<ConfigCreated> {
-		private OpenEvolveConfig config;
-		private String id;
-
-		@Override
-		public Mono<ConfigCreated> get() {
-			return getBean(ConfigService.class).map(s -> s.save(config, id))
-					.thenReturn(new ConfigCreated(id, config));
-		}
-
-		public OpenEvolveConfig getConfig() {
-			return config;
-		}
-
-		public void setConfig(OpenEvolveConfig config) {
-			this.config = config;
-		}
-
-		public String getId() {
-			return id;
-		}
-
-		public void setId(String id) {
-			this.id = id;
-		}
-	}
-
-	public static class UpdateConfig extends Input<ConfigUpdated> {
-		private OpenEvolveConfig config;
-		private String id;
-
-		@Override
-		public Mono<ConfigUpdated> get() {
-			return getBean(ConfigService.class).map(s -> s.save(config, id))
-					.thenReturn(new ConfigUpdated(id, config));
-		}
-
-		public OpenEvolveConfig getConfig() {
-			return config;
-		}
-
-		public void setConfig(OpenEvolveConfig config) {
-			this.config = config;
-		}
-
-		public String getId() {
-			return id;
-		}
-
-		public void setId(String id) {
-			this.id = id;
-		}
-	}
-
-	public static class DeleteConfig extends Input<ConfigDeleted> {
-		private String id;
-
-		@Override
-		public Mono<ConfigDeleted> get() {
-			return getBean(ConfigService.class).map(s -> s.delete(id))
-					.thenReturn(new ConfigDeleted(id));
-		}
-
-		public String getId() {
-			return id;
-		}
-
-		public void setId(String id) {
-			this.id = id;
-		}
-	}
-
-	@JsonSubTypes({@JsonSubTypes.Type(value = Event.Connect.class, name = "CONNECT"),
-			@JsonSubTypes.Type(value = Event.Start.class, name = "START"),
-			@JsonSubTypes.Type(value = Event.Stop.class, name = "STOP"),
+	@JsonSubTypes({
 			@JsonSubTypes.Type(value = Event.ConfigCreated.class, name = "CONFIG_CREATED"),
 			@JsonSubTypes.Type(value = Event.ConfigUpdated.class, name = "CONFIG_UPDATED"),
 			@JsonSubTypes.Type(value = Event.ConfigDeleted.class, name = "CONFIG_DELETED"),
 			@JsonSubTypes.Type(value = Event.Connected.class, name = "CONNECTED"),
-			@JsonSubTypes.Type(value = Event.CreateConfig.class, name = "CONFIG_CREATE"),
-			@JsonSubTypes.Type(value = Event.UpdateConfig.class, name = "CONFIG_UPDATE"),
-			@JsonSubTypes.Type(value = Event.DeleteConfig.class, name = "CONFIG_DELETE"),
-			@JsonSubTypes.Type(value = Event.GetSolutions.class, name = "GET_SOLUTIONS"),
 			@JsonSubTypes.Type(value = Event.Solutions.class, name = "SOLUTIONS"),
 			@JsonSubTypes.Type(value = Event.Started.class, name = "STARTED"),
 			@JsonSubTypes.Type(value = Event.Stopped.class, name = "STOPPED"),
