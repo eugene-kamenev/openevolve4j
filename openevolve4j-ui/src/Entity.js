@@ -1,3 +1,10 @@
+// Entity helpers aligned to backend records
+// Backend entities:
+// - EvolutionProblem: { id: UUID, name: string, config: OpenEvolveConfig }
+// - EvolutionRun: { id: UUID, problemId: UUID, dateCreated: ISO string, config: OpenEvolveConfig }
+// - EvolutionSolution: { id: UUID, parentId?: UUID, problemId: UUID, runId: UUID, dateCreated: ISO string, solution: EvolveSolution, fitness: object, metadata: object }
+// In UI we usually consume list of EvolutionSolution where dateCreated may be present at top-level
+
 export class SolutionConfig {
     constructor(params = {}) {
         this.workspace = params.workspace || "workspace";
@@ -5,7 +12,6 @@ export class SolutionConfig {
         this.runner = params.runner || "run.sh";
         this.evalTimeout = params.evalTimeout || "PT120S";
         this.pattern = params.pattern || ".*\\.py$";
-        this.language = params.language || "python";
         this.fullRewrite = params.fullRewrite ?? true;
     }
 }
@@ -48,8 +54,6 @@ export class MAPElites {
 
 export class LLM {
     constructor(params = {}) {
-        this.apiUrl = params.apiUrl || "";
-        this.apiKey = params.apiKey || "";
         this.models = params.models || [];
     }
 }
@@ -67,9 +71,12 @@ export class OpenEvolveConfig {
     }
 }
 
-export class Solution {
+export class Solution { // wrapper used in some views
     constructor(params = {}) {
         this.id = params.id;
+        this.parentId = params.parentId;
+        this.problemId = params.problemId;
+        this.runId = params.runId;
         this.solution = new EvolveSolution(params.solution);
         this.migratedFrom = params.migratedFrom;
         this.fitness = params.fitness;
@@ -77,17 +84,19 @@ export class Solution {
         this.islandId = params.islandId;
         this.cell = params.cell;
         this.cellId = params.cellId;
+        this.dateCreated = params.dateCreated; // align with backend (top-level field)
     }
 }
 
 export class EvolveSolution {
     constructor(params = {}) {
-        this.parentId = params.parentId;
-        this.dateCreated = params.dateCreated;
         this.files = params.files || {};
-        this.language = params.language;
         this.changes = params.changes;
         this.parentMetrics = params.parentMetrics || {};
-        this.fullRewrite = params.fullRewrite || false;
+        this.metadata = params.metadata || {};
+    }
+
+    get fullRewrite() {
+        return this.metadata?.fullRewrite ?? false;
     }
 }

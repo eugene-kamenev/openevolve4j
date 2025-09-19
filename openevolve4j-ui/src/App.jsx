@@ -1,163 +1,88 @@
-import React, { useState, useEffect, useRef, createContext, useCallback } from 'react';
-import { Settings, Plus, RefreshCw, CloudUpload, FolderOpen, Database, Activity, Layers, Target } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Settings, Plus, RefreshCw, Activity, Target } from 'lucide-react';
 import ConfigForm from './components/ConfigForm';
 import SidebarConfigList from './components/SidebarConfigList';
 import SolutionsView from './components/SolutionsView';
 import EvolutionView from './components/EvolutionView';
 import WebSocketService from './services/WebSocketService';
 import { OpenEvolveConfig } from './Entity';
+import { ProblemsApi, RunsApi, SolutionsApi } from './services/api';
+import { ConfigContext } from './ConfigContext';
 import './design-system.css';
 import './App.css';
 
-// Create context for configs
-export const ConfigContext = createContext();
-
 function App() {
   const ws = useRef(WebSocketService.getInstance());
-  const [configs, setConfigs] = useState([]);
-  const [solutions, setSolutions] = useState({}); // Map of configId -> solutions array
-  const [bestSolutions, setBestSolutions] = useState({}); // Map of configId -> best solution
-  const [statuses, setStatuses] = useState({}); // Map of configId -> status (RUNNING, NOT_RUNNING)
+  const [configs, setConfigs] = useState([]); // Evolution problems
+  const [solutions, setSolutions] = useState({}); // Map problemId -> solutions[]
+  const [bestSolutions, setBestSolutions] = useState({}); // Map problemId -> best solution
+  const [statuses, setStatuses] = useState({}); // Map problemId -> 'RUNNING'|'NOT_RUNNING'
+  const [activeRuns, setActiveRuns] = useState({}); // Map problemId -> current runId
   const [wsStatus, setWsStatus] = useState('connecting'); // connecting | open | error
   const [selectedConfig, setSelectedConfig] = useState(null);
   const [viewMode, setViewMode] = useState('welcome'); // 'welcome', 'edit', 'create'
-  const [activeTab, setActiveTab] = useState('configuration'); // 'configuration', 'solutions', 'checkpoints'
+  const [activeTab, setActiveTab] = useState('configuration'); // 'configuration', 'solutions', 'evolution'
   const [lastSync, setLastSync] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [evolutionEvents, setEvolutionEvents] = useState({}); // Map of configId -> events array
+  const [evolutionEvents, setEvolutionEvents] = useState({}); // Map problemId or runId -> events
 
-  const sendWsMessage = useCallback((event) => ws.current.send({ payload: event }), []);
-  const sendWsRequest = useCallback((event, timeout) => ws.current.sendRequest(event, timeout), []);
+  // Helper: compute best solution by metric 'score' if present
+  const computeBest = useCallback((list, metrics) => {
+    if (!Array.isArray(list) || list.length === 0) return null;
+    // Prefer numeric 'score' higher is better by default
+    const key = metrics && typeof metrics === 'object' ? Object.keys(metrics)[0] : 'score';
+    return list.reduce((best, cur) => {
+      const b = best?.fitness?.[key];
+      const c = cur?.fitness?.[key];
+      if (b == null) return cur;
+      if (c == null) return best;
+      return c > b ? cur : best;
+    }, null);
+  }, []);
 
-  // Centralized function to fetch solutions for a specific config
-  const fetchSolutions = useCallback(async (configId) => {
-    if (!configId) return;
+  // REST: load all problems
+  const loadProblems = useCallback(async () => {
+    const resp = await ProblemsApi.list({ limit: 50, offset: 0, sort: 'name', order: 'asc' });
+    const list = resp?.list ?? [];
+    setConfigs(list);
+    setLastSync(new Date());
+  }, []);
 
-    try {
-      const response = await sendWsRequest({
-        type: 'GET_SOLUTIONS',
-        id: configId
-      });
-
-      if (response.id && response.solutions) {
-        setSolutions(prev => ({
-          ...prev,
-          [response.id]: response.solutions
-        }));
-        
-        // Update best solution if bestId is provided
-        if (response.bestId) {
-          const bestSolution = response.solutions.find(sol => sol.id === response.bestId);
-          if (bestSolution) {
-            setBestSolutions(prev => ({
-              ...prev,
-              [response.id]: bestSolution
-            }));
-          }
-        }
-      }
-      return response;
-    } catch (error) {
-      console.error('Failed to fetch solutions:', error);
-      throw error;
+  // Load latest run and solutions for a problem
+  const fetchSolutions = useCallback(async (problemId) => {
+    if (!problemId) return;
+    // Find latest run for the problem
+    const runsResp = await RunsApi.list({ filters: { forProblem: problemId }, sort: 'dateCreated', order: 'desc', limit: 1, offset: 0 });
+    const latestRun = (runsResp?.list ?? [])[0];
+    if (!latestRun) {
+      setSolutions(prev => ({ ...prev, [problemId]: [] }));
+      setActiveRuns(prev => ({ ...prev, [problemId]: undefined }));
+      return;
     }
-  }, [sendWsRequest]);
+    const runId = latestRun.id;
+    setActiveRuns(prev => ({ ...prev, [problemId]: runId }));
+    const solsResp = await SolutionsApi.listForRun(runId, { limit: 200, offset: 0, sort: 'dateCreated', order: 'desc' });
+    const list = solsResp?.list ?? [];
+    setSolutions(prev => ({ ...prev, [problemId]: list }));
+    // Compute best
+    const problem = configs.find(c => c.id === problemId);
+    const metrics = problem?.config?.metrics;
+    const best = computeBest(list, metrics);
+    if (best) setBestSolutions(prev => ({ ...prev, [problemId]: best }));
+  }, [configs, computeBest]);
 
-  const handleEvolutionEvent = (taskId, event) => {
-    const timestamp = new Date().toISOString();
-
-    // Add event to evolution events log
-    setEvolutionEvents(prev => ({
-      ...prev,
-      [taskId]: [...(prev[taskId] || []), { ...event, timestamp }]
-    }));
-
-    // Handle different evolution events
-    switch (event.type) {
-      case 'SOLUTION_ADDED':
-        if (event.solution) {
-          setSolutions(prev => ({
-            ...prev,
-            [taskId]: [...(prev[taskId] || []), event.solution]
-          }));
-        }
-        break;
-
-      case 'SOLUTION_REMOVED':
-        if (event.solution?.id) {
-          setSolutions(prev => ({
-            ...prev,
-            [taskId]: (prev[taskId] || []).filter(s => s.id !== event.solution.id)
-          }));
-        }
-        break;
-
-      case 'CELL_IMPROVED':
-        if (event.newSolution) {
-          setSolutions(prev => {
-            const currentSolutions = prev[taskId] || [];
-            const updatedSolutions = currentSolutions.map(s =>
-              s.id === event.newSolution.id ? event.newSolution : s
-            );
-            // If not found, add it
-            if (!updatedSolutions.find(s => s.id === event.newSolution.id)) {
-              updatedSolutions.push(event.newSolution);
-            }
-            return {
-              ...prev,
-              [taskId]: updatedSolutions
-            };
-          });
-        }
-        break;
-
-      case 'NEW_BEST_SOLUTION':
-        if (event.newBest) {
-          // Update best solution state
-          setBestSolutions(prev => ({
-            ...prev,
-            [taskId]: event.newBest
-          }));
-          
-          setSolutions(prev => {
-            const currentSolutions = prev[taskId] || [];
-            const updatedSolutions = currentSolutions.map(s =>
-              s.id === event.newBest.id ? { ...event.newBest, isBest: true } : { ...s, isBest: false }
-            );
-            // If not found, add it
-            if (!updatedSolutions.find(s => s.id === event.newBest.id)) {
-              updatedSolutions.push({ ...event.newBest, isBest: true });
-            }
-            return {
-              ...prev,
-              [taskId]: updatedSolutions
-            };
-          });
-        }
-        break;
-
-      case 'CELL_REJECTED':
-      case 'ERROR':
-      case 'ITERATION_DONE':
-        // These events are mainly for logging and don't require solution state updates
-        break;
-
-      default:
-        console.warn('Unknown evolution event type:', event.type);
-    }
-  };
-
+  // Create default config
   const createDefaultConfig = () => {
     return new OpenEvolveConfig({
-      promptPath: "prompts",
+      promptPath: 'prompts',
       solution: {
-        path: "solution",
-        runner: "run.sh",
-        evalTimeout: "PT120S",
+        path: 'solution',
+        runner: 'run.sh',
+        evalTimeout: 'PT120S',
         fullRewrite: true,
-        language: "python",
-        pattern: ".*\\.py$"
+        language: 'python',
+        pattern: '.*\\.py$'
       },
       selection: {
         seed: 42,
@@ -168,102 +93,54 @@ function App() {
         numberDiverse: 5,
         numberTop: 5
       },
-      migration: {
-        rate: 0.1,
-        interval: 10
-      },
-      repository: {
-        checkpointInterval: 10,
-        populationSize: 50,
-        archiveSize: 10,
-        islands: 2
-      },
-      mapelites: {
-        numIterations: 100,
-        bins: 10,
-        dimensions: ["score", "complexity", "diversity"]
-      },
-      llm: {
-        models: [
-          { model: "gpt-4", temperature: 0.7 },
-          { model: "claude-3", temperature: 0.8 }
-        ],
-        apiUrl: "https://api.openai.com/v1",
-        apiKey: ""
-      },
-      metrics: {
-        score: true,
-        complexity: true,
-        diversity: true,
-        performance: false
-      }
+      migration: { rate: 0.1, interval: 10 },
+      repository: { checkpointInterval: 10, populationSize: 50, archiveSize: 10, islands: 2 },
+      mapelites: { numIterations: 100, bins: 10, dimensions: ['score', 'complexity', 'diversity'] },
+      llm: { models: [], apiUrl: '', apiKey: '' },
+      metrics: { score: true, complexity: true, diversity: true }
     });
   };
 
   const handleSelectConfig = (config) => {
     setSelectedConfig(config);
     setViewMode('edit');
-    setActiveTab('configuration'); // Reset to configuration tab when selecting config
+    setActiveTab('configuration');
   };
 
   // Fetch solutions when a config is selected for editing
   useEffect(() => {
     if (selectedConfig?.id && viewMode === 'edit') {
-      fetchSolutions(selectedConfig.id);
+      fetchSolutions(selectedConfig.id).catch(() => {});
     }
   }, [selectedConfig?.id, viewMode, fetchSolutions]);
 
   const handleCreateNew = () => {
     setSelectedConfig(createDefaultConfig());
     setViewMode('create');
-    setActiveTab('configuration'); // Reset to configuration tab when creating
+    setActiveTab('configuration');
   };
 
   const handleSave = async (configData) => {
     setLoading(true);
     setError(null);
-
     try {
       if (viewMode === 'create') {
-        const configId = Date.now().toString();
-
-        const response = await sendWsRequest({
-          type: 'CONFIG_CREATE',
-          id: configId,
-          config: configData
-        });
-
-        const newConfig = {
-          id: configId,
-          name: configData.name || `Config ${configs.length + 1}`,
-          created: new Date().toISOString(),
-          modified: new Date().toISOString(),
-          config: configData
-        };
-        setConfigs(prev => [...prev, newConfig]);
-        setSelectedConfig(newConfig);
+        // Create new EvolutionProblem
+        const created = await ProblemsApi.create({ name: configData.name || `Config ${configs.length + 1}`, config: configData });
+        await loadProblems();
+        setSelectedConfig(created);
         setViewMode('edit');
-
       } else if (viewMode === 'edit') {
-        const response = await sendWsRequest({
-          type: 'CONFIG_UPDATE',
-          id: selectedConfig.id,
-          config: configData
-        });
-
-        const updatedConfig = {
-          ...selectedConfig,
-          config: configData,
-          modified: new Date().toISOString()
-        };
-        setConfigs(prev => prev.map(c =>
-          c.id === selectedConfig.id ? updatedConfig : c
-        ));
-        setSelectedConfig(updatedConfig);
+        // Update problem: send partial update of config/name
+        const id = selectedConfig.id;
+        const updated = await ProblemsApi.update(id, { name: configData.name || selectedConfig.name, config: configData });
+        // Replace local
+        setConfigs(prev => prev.map(c => (c.id === id ? updated : c)));
+        setSelectedConfig(updated);
       }
-    } catch (error) {
-      console.error('Error saving configuration:', error);
-      setError(`Failed to save configuration: ${error.message}`);
+    } catch (e) {
+      console.error('Error saving configuration:', e);
+      setError(`Failed to save configuration: ${e.message}`);
     } finally {
       setLoading(false);
     }
@@ -278,118 +155,40 @@ function App() {
     }
   };
 
-  // Connection + event handling
+  // Initial load of problems
+  useEffect(() => {
+    loadProblems().catch((e) => setError(e.message));
+  }, [loadProblems]);
+
+  // WebSocket: treat as events-only; no request/response
   useEffect(() => {
     const listener = (eventType, data) => {
       if (eventType === 'open') {
         setWsStatus('open');
-        sendWsRequest({ type: 'CONNECT' })
-          .then(response => {
-            if (response && response.existing) {
-              const configArray = Object.entries(response.existing).map(([id, config]) => ({
-                id,
-                name: config.name || id,
-                created: config.created || new Date().toISOString(),
-                modified: config.modified || new Date().toISOString(),
-                config
-              }));
-              setConfigs(configArray);
-              setLastSync(new Date());
-
-              // Update statuses from backend response
-              if (response.statuses) {
-                setStatuses(response.statuses);
-              }
-            }
-          })
-          .catch(err => {
-            console.error('Failed to connect and load configs:', err);
-            setWsStatus('error');
-          });
       } else if (eventType === 'close') {
         setWsStatus('error');
       }
 
-      if (eventType === 'message' && data.payload?.type) {
-        const p = data.payload;
-        const eventId = p.id; // Top-level event ID for STARTED/STOPPED events
-
+      if (eventType === 'message') {
+        // Support both { payload: {...} } and bare {...}
+        const p = data?.payload ?? data;
+        if (!p || !p.type) return;
         switch (p.type) {
-          case 'CONFIG_CREATED':
-            if (p.config) {
-              setConfigs(prev => [...prev, { id: p.id, name: p.config.name || p.id, created: new Date().toISOString(), modified: new Date().toISOString(), config: p.config }]);
+          case 'EVOLUTION_EVENT': {
+            const ts = new Date().toISOString();
+            const taskKey = p.taskId || p.problemId || p.runId; // backend may differ
+            if (taskKey) {
+              setEvolutionEvents(prev => ({ ...prev, [taskKey]: [...(prev[taskKey] || []), { ...p.event, timestamp: ts }] }));
             }
             break;
-          case 'CONFIG_UPDATED':
-            if (p.config && p.id) {
-              setConfigs(prev => prev.map(c => c.id === p.id ? { ...c, name: p.config.name || p.id, modified: new Date().toISOString(), config: p.config } : c));
-            }
-            break;
-          case 'CONFIG_DELETED':
-            if (p.id) {
-              setConfigs(prev => prev.filter(c => c.id !== p.id));
-              // Also remove status for deleted config
-              setStatuses(prev => {
-                const newStatuses = { ...prev };
-                delete newStatuses[p.id];
-                return newStatuses;
-              });
-            }
-            break;
-          case 'STARTED':
-            console.log('Received STARTED event for id:', p.id);
-            // Update status to RUNNING for the correct config id
-            if (p.id) {
-              setStatuses(prev => ({
-                ...prev,
-                [p.id]: 'RUNNING'
-              }));
-            }
-            break;
-          case 'STOPPED':
-            console.log('Received STOPPED event for id:', p.id);
-            // Update status to NOT_RUNNING for the correct config id
-            if (p.id) {
-              setStatuses(prev => ({
-                ...prev,
-                [p.id]: 'NOT_RUNNING'
-              }));
-            }
-            break;
-          case 'EVOLUTION_EVENT':
-            if (p.taskId && p.event) {
-              handleEvolutionEvent(p.taskId, p.event);
-            }
-            break;
-          case 'SOLUTIONS':
-            if (p.id && p.solutions) {
-              setSolutions(prev => ({
-                ...prev,
-                [p.id]: p.solutions
-              }));
-              
-              // Update best solution if bestId is provided
-              if (p.bestId) {
-                const bestSolution = p.solutions.find(sol => sol.id === p.bestId);
-                if (bestSolution) {
-                  setBestSolutions(prev => ({
-                    ...prev,
-                    [p.id]: bestSolution
-                  }));
-                }
-              }
-            }
+          }
+          default:
             break;
         }
       }
     };
-
     ws.current.addListener(listener);
-
-    // Cleanup function to remove the listener when component unmounts or effect re-runs
-    return () => {
-      ws.current.removeListener(listener);
-    };
+    return () => ws.current.removeListener(listener);
   }, []);
 
   const statusDot = (state) => {
@@ -398,7 +197,22 @@ function App() {
   };
 
   return (
-    <ConfigContext.Provider value={{ configs, setConfigs, solutions, setSolutions, bestSolutions, setBestSolutions, statuses, setStatuses, evolutionEvents, setEvolutionEvents, sendWsMessage, sendWsRequest, fetchSolutions }}>
+    <ConfigContext.Provider value={{
+      configs,
+      setConfigs,
+      solutions,
+      setSolutions,
+      bestSolutions,
+      setBestSolutions,
+      statuses,
+      setStatuses,
+      activeRuns,
+      setActiveRuns,
+      evolutionEvents,
+      setEvolutionEvents,
+      fetchSolutions,
+      loadProblems
+    }}>
       <div className="oe-app-layout">
         {/* Sidebar */}
         <aside className="oe-sidebar">
@@ -416,7 +230,7 @@ function App() {
           <div className="oe-footer">
             <div className="row gap-2 align-center">
               {statusDot(wsStatus)}
-              <span>{wsStatus === 'open' ? 'Connected' : wsStatus === 'error' ? 'Disconnected' : 'Connecting…'}</span>
+              <span>{wsStatus === 'open' ? 'Events connected' : wsStatus === 'error' ? 'Events disconnected' : 'Connecting…'}</span>
             </div>
             {lastSync && <div className="text-faint" style={{ marginTop: 6 }}>Synced {lastSync.toLocaleTimeString()}</div>}
           </div>
@@ -457,7 +271,7 @@ function App() {
           </div>
 
           <div className="row gap-3">
-            <button className="oe-btn outline" onClick={() => setLastSync(new Date())}>
+            <button className="oe-btn outline" onClick={() => loadProblems().catch(() => {})}>
               <RefreshCw size={16} />Refresh
             </button>
           </div>

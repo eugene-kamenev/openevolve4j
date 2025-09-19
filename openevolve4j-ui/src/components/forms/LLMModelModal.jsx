@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Minus } from 'lucide-react';
+import { ModelsApi } from '../../services/api';
 
 const LLMModelModal = ({ 
   isOpen, 
@@ -12,11 +13,30 @@ const LLMModelModal = ({
     name: '', 
     parameters: [
       { name: 'temperature', value: '0.7' },
-      { name: 'max_tokens', value: '2048' }
     ] 
   });
+  const [availableModels, setAvailableModels] = useState([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [modelsError, setModelsError] = useState(null);
 
   useEffect(() => {
+    // Load LLM models list when the modal opens
+    let cancelled = false;
+    const loadModels = async () => {
+      if (!isOpen) return;
+      setLoadingModels(true);
+      setModelsError(null);
+      try {
+        const resp = await ModelsApi.list({ limit: 200, offset: 0, sort: 'name', order: 'asc' });
+        if (!cancelled) setAvailableModels(resp?.list || resp || []);
+      } catch (e) {
+        if (!cancelled) setModelsError('Failed to load models');
+      } finally {
+        if (!cancelled) setLoadingModels(false);
+      }
+    };
+    loadModels();
+
     if (editingModel) {
       const parameters = [];
       Object.entries(editingModel).forEach(([key, value]) => {
@@ -38,6 +58,7 @@ const LLMModelModal = ({
         ] 
       });
     }
+    return () => { cancelled = true; };
   }, [editingModel, isOpen]);
 
   const handleSave = () => {
@@ -106,6 +127,27 @@ const LLMModelModal = ({
         </div>
         
         <div className="modal-body">
+          <div className="form-group">
+            <label htmlFor="model-select">Select Existing Model</label>
+            <div className="row gap-2">
+              <select
+                id="model-select"
+                className="oe-select"
+                value={modelFormData.name}
+                onChange={(e) => setModelFormData(prev => ({ ...prev, name: e.target.value }))}
+                disabled={loadingModels}
+              >
+                <option value="">-- Type custom model name --</option>
+                {availableModels.map((m) => (
+                  <option key={m.id || m.name} value={m.name || m.model || ''}>
+                    {m.name || m.model}
+                  </option>
+                ))}
+              </select>
+              {loadingModels && <span className="text-dim">Loading…</span>}
+              {modelsError && <span className="text-danger">{modelsError}</span>}
+            </div>
+          </div>
           <div className="form-group">
             <label htmlFor="model-name">Model Name *</label>
             <input

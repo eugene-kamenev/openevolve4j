@@ -42,32 +42,6 @@ const LLMSection = ({ data, onChange, errors = {} }) => {
         <Cpu size={20} />
         LLM Configuration
       </h3>
-      
-      <FormGroup
-        id="api-url"
-        label="API URL"
-        required
-        error={errors['llm.apiUrl']}
-      >
-        <input
-          id="api-url"
-          type="url"
-          value={data.apiUrl || ''}
-          onChange={(e) => onChange('apiUrl', e.target.value)}
-          className={errors['llm.apiUrl'] ? 'error' : ''}
-          placeholder="http://localhost:4000"
-        />
-      </FormGroup>
-
-      <FormGroup id="api-key" label="API Key">
-        <input
-          id="api-key"
-          type="password"
-          value={data.apiKey || ''}
-          onChange={(e) => onChange('apiKey', e.target.value)}
-          placeholder="Your API key"
-        />
-      </FormGroup>
 
       <FormGroup label="Models">
         <div className="array-input">

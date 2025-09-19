@@ -175,7 +175,18 @@ const ConfigForm = ({ config, mode, onSave, onCancel }) => {
           <Code size={20} />
           Solution Configuration
         </h3>
-        
+
+        <FormGroup id="workspace-path" label="Workspace Path" required error={errors['solution.workspace']}>
+          <input
+            id="workspace-path"
+            type="text"
+            value={formData.solution.workspace || ''}
+            onChange={(e) => handleInputChange('solution', 'workspace', e.target.value)}
+            className={errors['solution.workspace'] ? 'error' : ''}
+            placeholder="workspace"
+          />
+        </FormGroup>
+
         <FormGroup id="solution-path" label="Solution Path" required error={errors['solution.path']}>
           <input
             id="solution-path"
@@ -195,23 +206,6 @@ const ConfigForm = ({ config, mode, onSave, onCancel }) => {
             onChange={(e) => handleInputChange('solution', 'runner', e.target.value)}
             placeholder="run.sh"
           />
-        </FormGroup>
-
-        <FormGroup id="language" label="Language">
-          <select
-            id="language"
-            value={formData.solution.language || 'python'}
-            onChange={(e) => handleInputChange('solution', 'language', e.target.value)}
-          >
-            <option value="python">Python</option>
-            <option value="java">Java</option>
-            <option value="javascript">JavaScript</option>
-            <option value="typescript">TypeScript</option>
-            <option value="markdown">Markdown</option>
-            <option value="go">Go</option>
-            <option value="rust">Rust</option>
-            <option value="cpp">C++</option>
-          </select>
         </FormGroup>
 
         <FormGroup id="pattern" label="File Pattern">
@@ -517,10 +511,6 @@ const ConfigForm = ({ config, mode, onSave, onCancel }) => {
       newErrors['solution.path'] = 'Solution path is required';
     }
     
-    if (!formData.llm?.apiUrl?.trim()) {
-      newErrors['llm.apiUrl'] = 'API URL is required';
-    }
-    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -581,35 +571,12 @@ const ConfigForm = ({ config, mode, onSave, onCancel }) => {
             <X size={18} />
             Cancel
           </button>
-          <button 
-            type="button" 
-            onClick={() => setShowYamlPreview(true)} 
-            className="btn btn-secondary"
-          >
-            <Eye size={18} />
-            Preview YAML
-          </button>
           <button type="submit" className="btn btn-primary">
             <Save size={18} />
             {mode === 'create' ? 'Create Configuration' : 'Save Changes'}
           </button>
         </div>
       </form>
-
-      <YamlPreview
-        config={{
-          promptPath: formData.promptPath,
-          solution: formData.solution,
-          selection: formData.selection,
-          migration: formData.migration,
-          repository: formData.repository,
-          mapelites: formData.mapelites,
-          llm: formData.llm,
-          metrics: formData.metrics
-        }}
-        isOpen={showYamlPreview}
-        onClose={() => setShowYamlPreview(false)}
-      />
     </div>
   );
 };

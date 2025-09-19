@@ -7,26 +7,86 @@ import {
   CheckCircle,
   AlertCircle,
   RefreshCw,
-  Database,
   Clock,
   TrendingUp,
   Activity,
-  ChevronDown,
   X
 } from 'lucide-react';
-import { ConfigContext } from '../App';
+import { ConfigContext } from '../ConfigContext';
 import { formatScore } from '../utils/formatters';
+import { RunsApi } from '../services/api';
+import SolutionsBrowser from './SolutionsBrowser';
 
 const EvolutionView = ({ config }) => {
-  const { solutions, setSolutions, statuses, setStatuses, evolutionEvents, sendWsRequest, fetchSolutions } = useContext(ConfigContext);
+  const { solutions, statuses, setStatuses, evolutionEvents, fetchSolutions, activeRuns, setActiveRuns } = useContext(ConfigContext);
   const configSolutions = solutions[config?.id] || [];
   const [evolutionType, setEvolutionType] = useState(configSolutions.length > 0 ? 'continue' : 'restart');
   const [selectedSolutions, setSelectedSolutions] = useState([]);
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [currentIteration, setCurrentIteration] = useState(0);
   const configEvents = evolutionEvents[config?.id] || [];
-  const configStatus = statuses[config?.id] || 'NOT_RUNNING'; // Get status from backend
+  const configStatus = statuses[config?.id] || 'NOT_RUNNING';
   const isRunning = configStatus === 'RUNNING';
+  const currentRunId = activeRuns[config?.id];
+
+  // Poll backend /run/status and sync running state for this problem
+  useEffect(() => {
+    const problemId = config?.id;
+    if (!problemId) return;
+    let cancelled = false;
+    let timer;
+
+    const poll = async () => {
+      try {
+        const statusMap = await RunsApi.status();
+        const knownRunId = activeRuns[problemId];
+        if (knownRunId && statusMap?.[knownRunId] === 'RUNNING') {
+          if (!cancelled) {
+            setStatuses(prev => ({ ...prev, [problemId]: 'RUNNING' }));
+          }
+          return;
+        }
+
+        // Discover if any running run belongs to this problem
+        const entries = Object.entries(statusMap || {});
+        let foundRunId = null;
+        for (const [runId, state] of entries) {
+          if (state !== 'RUNNING') continue;
+          try {
+            const run = await RunsApi.get(runId);
+            if (run?.problemId === problemId) {
+              foundRunId = runId;
+              break;
+            }
+          } catch (_) {
+            // ignore individual lookup errors
+          }
+        }
+
+        if (!cancelled) {
+          if (foundRunId) {
+            setStatuses(prev => ({ ...prev, [problemId]: 'RUNNING' }));
+            if (activeRuns[problemId] !== foundRunId) {
+              setActiveRuns(prev => ({ ...prev, [problemId]: foundRunId }));
+            }
+          } else {
+            setStatuses(prev => ({ ...prev, [problemId]: 'NOT_RUNNING' }));
+            // Do not clear activeRuns here; keep latest for potential continue
+          }
+        }
+      } catch (_) {
+        // network or backend error; skip without changing UI state
+      }
+    };
+
+    // initial tick and interval
+    poll();
+    timer = setInterval(poll, 3000);
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+    };
+  }, [config?.id, activeRuns, setActiveRuns, setStatuses]);
   
   // Update current iteration from ITERATION_DONE events
   useEffect(() => {
@@ -67,7 +127,7 @@ const EvolutionView = ({ config }) => {
       label: 'Continue',
       icon: Play,
       description: 'Resume evolution from the last checkpoint',
-      disabled: configSolutions.length === 0
+      disabled: !currentRunId
     },
     {
       value: 'custom',
@@ -106,46 +166,36 @@ const EvolutionView = ({ config }) => {
 
   const handleRunEvolution = async () => {
     try {
-      // Build the event payload to match Java backend structure
-      const eventPayload = {
-        type: 'START',
-        id: config.id,
-        restart: evolutionType === 'restart',
-        ...(evolutionType === 'custom' && selectedSolutions.length > 0 && { 
-          initialSolutions: selectedSolutions 
-        })
-      };
-
-      console.log('Starting evolution with payload:', eventPayload);
-      const response = await sendWsRequest(eventPayload);
-      // Handle STARTED response here
-      if (response && (response.type === 'STARTED' || response.status === 'RUNNING')) {
-        setStatuses(prev => ({
-          ...prev,
-          [config.id]: 'RUNNING'
-        }));
+      const payload = { problemId: config.id };
+      if (evolutionType === 'custom' && selectedSolutions.length > 0) payload.solutionIds = selectedSolutions;
+      if (evolutionType === 'continue' && currentRunId) payload.runId = currentRunId;
+      const resp = await RunsApi.start(payload);
+      if (resp?.id) {
+        setActiveRuns(prev => ({ ...prev, [config.id]: resp.id }));
+        setStatuses(prev => ({ ...prev, [config.id]: 'RUNNING' }));
+        fetchSolutions(config.id);
       }
-      console.log('Evolution started response:', response);
-    } catch (error) {
-      console.error('Failed to start evolution:', error);
+    } catch (e) {
+      console.error('Failed to start evolution:', e);
+      alert(`Failed to start evolution: ${e.message}`);
     }
   };
 
   const handleStopEvolution = async () => {
     try {
-      const response = await sendWsRequest({
-        type: 'STOP',
-        id: config.id
-      });
-      // Handle STOPPED response here
-      if (response && (response.type === 'STOPPED' || response.status === 'NOT_RUNNING')) {
-        setStatuses(prev => ({
-          ...prev,
-          [config.id]: 'NOT_RUNNING'
-        }));
+      const runId = currentRunId;
+      if (!runId) {
+        setStatuses(prev => ({ ...prev, [config.id]: 'NOT_RUNNING' }));
+        return;
       }
-    } catch (error) {
-      console.error('Failed to stop evolution:', error);
+      await RunsApi.stop(runId);
+      setStatuses(prev => ({ ...prev, [config.id]: 'NOT_RUNNING' }));
+      setActiveRuns(prev => ({ ...prev, [config.id]: undefined }));
+      // Optionally refresh solutions
+      fetchSolutions(config.id);
+    } catch (e) {
+      console.error('Failed to stop evolution:', e);
+      alert(`Failed to stop evolution: ${e.message}`);
     }
   };
 
@@ -333,7 +383,7 @@ const EvolutionView = ({ config }) => {
                 className="oe-btn primary"
                 onClick={handleRunEvolution}
                 disabled={
-                  (evolutionType === 'continue' && configSolutions.length === 0) ||
+                  (evolutionType === 'continue' && !currentRunId) ||
                   (evolutionType === 'custom' && (viableSolutions.length === 0 || selectedSolutions.length === 0))
                 }
               >
@@ -447,41 +497,18 @@ const EvolutionView = ({ config }) => {
             
             <div className="modal-body">
               <p className="text-dim">
-                Choose which solutions to use as the initial population for custom evolution. 
-                Selected solutions will be used to seed the new generation.
+                Choose which solutions to use as the initial population for custom evolution.
+                Use filters to browse by run and model, then select rows.
               </p>
-              
-              <div className="modal-stats">
-                <div className="stat-item sm">
-                  <span className="stat-value">{viableSolutions.length}</span>
-                  <span className="stat-label">Available Solutions</span>
-                </div>
-                <div className="stat-item sm">
-                  <span className="stat-value">{selectedSolutions.length}</span>
-                  <span className="stat-label">Selected</span>
-                </div>
-              </div>
 
-              <div className="solution-selection-modal">
-                {viableSolutions.map(solution => (
-                  <label key={solution.id} className="solution-option-modal">
-                    <input
-                      type="checkbox"
-                      checked={selectedSolutions.includes(solution.id)}
-                      onChange={() => handleSolutionToggle(solution.id)}
-                    />
-                    <div className="solution-content-modal">
-                      <div className="solution-header">
-                        <code className="solution-id">{solution.id?.substring(0, 8)}</code>
-                        <span className="solution-iteration">Iteration {solution.iteration || 0}</span>
-                        <span className="solution-score">
-                          Score: {formatScore(solution.fitness, config?.config?.metrics)}
-                        </span>
-                      </div>
-                    </div>
-                  </label>
-                ))}
-              </div>
+              <SolutionsBrowser
+                problemId={config?.id}
+                metrics={config?.config?.metrics}
+                selectionMode
+                selectedIds={selectedSolutions}
+                onChangeSelectedIds={setSelectedSolutions}
+                selectViableOnly
+              />
             </div>
             
             <div className="modal-footer">

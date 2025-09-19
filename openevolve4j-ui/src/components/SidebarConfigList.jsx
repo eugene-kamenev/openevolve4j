@@ -1,16 +1,17 @@
 import React, { useState, useContext } from 'react';
-import { Plus, Upload, Search, Edit, Trash2, Copy, Download } from 'lucide-react';
-import { ConfigContext } from '../App';
+import { Plus, Upload, Search, Trash2, Copy, Download } from 'lucide-react';
+import { ConfigContext } from '../ConfigContext';
 import yaml from 'js-yaml';
 import { OpenEvolveConfig } from '../Entity';
+import { ProblemsApi } from '../services/api';
 
 const SidebarConfigList = ({ selectedConfigId, onSelectConfig, onCreateNew }) => {
-  const { configs, setConfigs, sendWsRequest } = useContext(ConfigContext);
+  const { configs, setConfigs } = useContext(ConfigContext);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
 
   const filteredConfigs = configs.filter(config => 
-    config.name.toLowerCase().includes(searchTerm.toLowerCase())
+    (config.name || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleDelete = async (configId, event) => {
@@ -18,11 +19,8 @@ const SidebarConfigList = ({ selectedConfigId, onSelectConfig, onCreateNew }) =>
     if (window.confirm('Are you sure you want to delete this configuration?')) {
       setLoading(true);
       try {
-        await sendWsRequest({
-          type: 'CONFIG_DELETE',
-          id: configId
-        });
-        setConfigs(configs.filter(c => c.id !== configId));
+        await ProblemsApi.remove(configId);
+        setConfigs(prev => prev.filter(c => c.id !== configId));
       } catch (error) {
         console.error('Error deleting configuration:', error);
         alert(`Failed to delete configuration: ${error.message}`);
@@ -36,26 +34,12 @@ const SidebarConfigList = ({ selectedConfigId, onSelectConfig, onCreateNew }) =>
     event.stopPropagation();
     setLoading(true);
     try {
-      const configId = Date.now().toString();
       const duplicatedConfig = {
-        ...config.config,
-        name: `${config.name} (Copy)`
+        name: `${config.name} (Copy)`,
+        config: new OpenEvolveConfig(config.config)
       };
-      
-      await sendWsRequest({
-        type: 'CONFIG_CREATE',
-        id: configId,
-        config: duplicatedConfig
-      });
-      
-      const newConfig = {
-        id: configId,
-        name: duplicatedConfig.name,
-        created: new Date().toISOString(),
-        modified: new Date().toISOString(),
-        config: duplicatedConfig
-      };
-      setConfigs(prev => [...prev, newConfig]);
+      const created = await ProblemsApi.create(duplicatedConfig);
+      setConfigs(prev => [...prev, created]);
     } catch (error) {
       console.error('Error duplicating configuration:', error);
       alert(`Failed to duplicate configuration: ${error.message}`);
@@ -76,18 +60,12 @@ const SidebarConfigList = ({ selectedConfigId, onSelectConfig, onCreateNew }) =>
       mapelites: config.config.mapelites,
       metrics: config.config.metrics
     };
-    
-    const yamlStr = yaml.dump(exportConfig, { 
-      indent: 2,
-      lineWidth: -1,
-      noRefs: true,
-      sortKeys: false
-    });
+    const yamlStr = yaml.dump(exportConfig, { indent: 2, lineWidth: -1, noRefs: true, sortKeys: false });
     const dataBlob = new Blob([yamlStr], { type: 'application/x-yaml' });
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${config.name.replace(/\s+/g, '_')}.yml`;
+    link.download = `${(config.name || 'config').replace(/\s+/g, '_')}.yml`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -98,39 +76,21 @@ const SidebarConfigList = ({ selectedConfigId, onSelectConfig, onCreateNew }) =>
     const file = event.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         try {
           let importedConfig;
           const content = e.target.result;
-          
           try {
             importedConfig = yaml.load(content);
-          } catch (yamlError) {
-            try {
-              importedConfig = JSON.parse(content);
-            } catch (jsonError) {
-              throw new Error('Invalid YAML or JSON format');
-            }
+          } catch {
+            try { importedConfig = JSON.parse(content); } catch { throw new Error('Invalid YAML or JSON format'); }
           }
-          
-          const newConfig = {
-            id: Date.now().toString(),
+          const body = {
             name: file.name.replace(/\.(yml|yaml|json)$/, '') || 'Imported Config',
-            created: new Date().toISOString(),
-            modified: new Date().toISOString(),
             config: new OpenEvolveConfig(importedConfig)
           };
-          
-          sendWsRequest({
-            type: 'CONFIG_CREATE',
-            id: newConfig.id,
-            config: newConfig.config
-          }).then(() => {
-            setConfigs([...configs, newConfig]);
-          }).catch(error => {
-            console.error('Error creating imported configuration:', error);
-            alert(`Error creating imported configuration: ${error.message}`);
-          });
+          const created = await ProblemsApi.create(body);
+          setConfigs(prev => [...prev, created]);
         } catch (error) {
           alert(`Error importing configuration: ${error.message}`);
         }
@@ -205,13 +165,6 @@ const SidebarConfigList = ({ selectedConfigId, onSelectConfig, onCreateNew }) =>
             >
               <div className="config-item-header">
                 <h4 className="config-name">{config.name}</h4>
-              </div>
-              <div className="config-item-meta">
-                <div className="config-info">
-                  <span className="config-language">
-                    {config.config.solution?.language || 'unknown'}
-                  </span>
-                </div>
               </div>
               <div className="config-item-actions">
                 <button
