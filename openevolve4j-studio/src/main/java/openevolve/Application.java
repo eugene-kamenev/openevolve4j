@@ -59,7 +59,7 @@ public class Application {
 	RestClient.Builder restClientBuilder() {
 		var builder = RestClient.builder();
 		ClientHttpRequestFactorySettings settings = ClientHttpRequestFactorySettings.defaults()
-				.withConnectTimeout(Duration.ofSeconds(30)).withReadTimeout(Duration.ofMinutes(3));
+				.withConnectTimeout(Duration.ofSeconds(30)).withReadTimeout(Duration.ofMinutes(4));
 		return builder.requestFactory(ClientHttpRequestFactoryBuilder.reactor().build(settings));
 	}
 

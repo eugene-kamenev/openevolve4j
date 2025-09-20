@@ -89,7 +89,7 @@ public class OpenEvolveService implements DisposableBean {
                                                 null));
                             };
                         }, Constants.OBJECT_MAPPER);
-                var runner = algo.run(100);
+                var runner = algo.run(config.iterations());
                 return startProcess(run.id(), runner).thenReturn(run);
             });
         }
