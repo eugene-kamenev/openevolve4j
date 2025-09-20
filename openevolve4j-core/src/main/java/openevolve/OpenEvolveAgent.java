@@ -33,6 +33,10 @@ public class OpenEvolveAgent extends BaseAgent implements Function<EvolveStep, E
 			log.debug("Doing request to LLM model: {}", client.getKey());
 		}
 		response = client.getValue().prompt(prompt).call().content();
+		if (response == null || response.isBlank()) {
+			log.error("LLM ({} ) returned empty response", client.getKey());
+			return null;
+		}
 		var llmRequest = promptToMap(prompt);
 		var metadata = Map.of("llmModel", client.getKey(), "llmRequest", llmRequest, "llmResponse",
 				response, "fullRewrite", step.parent().solution().fullRewrite());

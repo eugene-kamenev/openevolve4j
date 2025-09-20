@@ -23,7 +23,7 @@ allprojects {
 	}
 
 	ext {
-		set('springAiVersion', "1.0.1")
+		set('springAiVersion', "1.0.2")
 		set('springBootVersion', "3.5.4")
 	}
 

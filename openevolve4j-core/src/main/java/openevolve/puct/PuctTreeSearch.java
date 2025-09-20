@@ -1,4 +1,3 @@
-// Save as PuctTreeSearch.java
 package openevolve.puct;
 
 import java.util.*;
@@ -51,16 +50,8 @@ public abstract class PuctTreeSearch<S> {
     protected final TreeSet<Node<S>> sortedNodes;
     protected final double cpuct;
 
-    /**
-     * @param rootNode initial root node (its visits will be initialized to 1)
-     * @param cpuct exploration constant
-     * @param solutionComparator comparator ordering solutions ascending (smallest -> largest). If
-     *        comparator says two solutions equal, tie-break will use node id.
-     */
     public PuctTreeSearch(double cpuct, Comparator<S> solutionComparator) {
         this.cpuct = cpuct;
-        // comparator for nodes: first compare by user comparator, then by id to avoid collisions in
-        // TreeSet
         Comparator<Node<S>> nodeComparator = (a, b) -> {
             int c = solutionComparator.compare(a.solution, b.solution);
             if (c != 0)
@@ -74,22 +65,37 @@ public abstract class PuctTreeSearch<S> {
      * Run the search for a fixed number of iterations.
      */
     public Mono<Void> run(int iterations) {
-        Mono<Node<S>> rootInit = Mono.empty();
-        if (sortedNodes.isEmpty()) {
-            rootInit = initRoot().map(Node::new).doOnNext(sortedNodes::add);
-        }
-        return rootInit
-                .thenMany(evolve(nextParent()).doOnNext(this::backpropagate).take(iterations))
+        Mono<Void> ensureRoot = Mono.defer(() -> {
+            synchronized (sortedNodes) {
+                if (!sortedNodes.isEmpty()) {
+                    return Mono.empty();
+                }
+            }
+            return initRoot()
+                .map(Node::new)
+                .doOnNext(n -> {
+                    synchronized (sortedNodes) {
+                        sortedNodes.add(n);
+                    }
+                })
                 .then();
+        });
+
+        // Evolve with workers; downstream 'take(iterations)' controls termination.
+        Flux<Node<S>> search = Flux.defer(this::evolve);
+
+        return ensureRoot
+            .thenMany(search.doOnNext(this::backpropagate).take(iterations))
+            .then();
     }
 
     protected Node<S> nextParent() {
         synchronized (sortedNodes) {
-            int N_total = sortedNodes.stream().mapToInt(n -> n.visits).sum();
-            if (N_total < 1)
-                N_total = 1;
+            if (sortedNodes.isEmpty()) return null;
 
-            // 2) select u* = argmax of PUCT value (computing rank scores on-the-fly)
+            int N_total = sortedNodes.stream().mapToInt(n -> n.visits).sum();
+            if (N_total < 1) N_total = 1;
+
             Node<S> selected = null;
             double bestVal = Double.NEGATIVE_INFINITY;
             double pFlat = 1.0 / sortedNodes.size(); // flat prior
@@ -98,7 +104,6 @@ public abstract class PuctTreeSearch<S> {
 
             for (Node<S> u : sortedNodes) {
                 idx++;
-                // Compute rank score: RankScore_T(u) = (Rank_T(u) - 1) / (|T| - 1)
                 double rankScore;
                 if (n == 1) {
                     rankScore = 1.0;
@@ -119,7 +124,11 @@ public abstract class PuctTreeSearch<S> {
 
     protected void backpropagate(Node<S> node) {
         synchronized (sortedNodes) {
+            sortedNodes.add(node);
             Node<S> anc = node.parent;
+            if (anc != null) {
+                anc.children.add(node);
+            }
             while (anc != null) {
                 anc.visits += 1;
                 anc = anc.parent;
@@ -127,14 +136,16 @@ public abstract class PuctTreeSearch<S> {
         }
     }
 
-    protected abstract Flux<Node<S>> evolve(Node<S> root);
+    // ...existing code...
+    protected abstract Flux<Node<S>> evolve();
 
     protected abstract Mono<S> initRoot();
 
     /** Return the node considered best by the user comparator (largest element). */
     public Node<S> getBestByComparator() {
-        if (sortedNodes.isEmpty())
-            return null;
-        return sortedNodes.last(); // since comparator is ascending, last is largest/best
+        synchronized (sortedNodes) {
+            if (sortedNodes.isEmpty()) return null;
+            return sortedNodes.last(); // since comparator is ascending, last is largest/best
+        }
     }
 }
