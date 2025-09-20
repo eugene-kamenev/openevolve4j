@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import openevolve.Constants;
 import openevolve.EvolveSolution;
 import openevolve.OpenEvolve;
+import openevolve.OpenEvolveConfig;
 import openevolve.db.DbHandler;
 import openevolve.db.EvolutionProblem;
 import openevolve.db.EvolutionRun;
@@ -25,6 +26,8 @@ import openevolve.events.Event.Stopped;
 import openevolve.mapelites.MAPElites;
 import openevolve.mapelites.Population.Solution;
 import openevolve.mapelites.listener.MAPElitesLoggingListener;
+import openevolve.puct.LLMPuctTreeConfig;
+import openevolve.puct.LLMPuctTree.SolutionManager;
 import openevolve.web.WebHandlers.StartCommand;
 import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
@@ -36,18 +39,17 @@ public class OpenEvolveService implements DisposableBean {
     private static final Logger log = LoggerFactory.getLogger(OpenEvolveService.class);
 
     private final Map<UUID, Disposable> runningTasks = new ConcurrentHashMap<>();
-    private final Map<UUID, MAPElites<EvolveSolution>> activeMapElites = new ConcurrentHashMap<>();
 
     private final EventBus eventService;
     private final OpenAiApi openAiApi;
     private final DbHandler<EvolutionSolution> solutionHandler;
     private final DbHandler<EvolutionState> stateHandler;
-    private final DbHandler<EvolutionRun> runHandler;
-    private final DbHandler<EvolutionProblem> problemHandler;
+    private final DbHandler<EvolutionRun<?>> runHandler;
+    private final DbHandler<EvolutionProblem<?>> problemHandler;
 
     public OpenEvolveService(EventBus eventService, OpenAiApi openAiApi,
             DbHandler<EvolutionSolution> solutionHandler, DbHandler<EvolutionState> stateHandler,
-            DbHandler<EvolutionRun> runHandler, DbHandler<EvolutionProblem> problemHandler) {
+            DbHandler<EvolutionRun<?>> runHandler, DbHandler<EvolutionProblem<?>> problemHandler) {
         this.eventService = eventService;
         this.openAiApi = openAiApi;
         this.solutionHandler = solutionHandler;
@@ -56,33 +58,60 @@ public class OpenEvolveService implements DisposableBean {
         this.problemHandler = problemHandler;
     }
 
-    public Mono<EvolutionRun> start(StartCommand startCommand) {
+    public Mono<EvolutionRun<?>> start(StartCommand startCommand) {
         return problemHandler.findById(startCommand.problemId())
                 .switchIfEmpty(Mono.error(new IllegalArgumentException(
                         "No evolution problem found for id " + startCommand.problemId())))
                 .flatMap(problem -> startEvolution(startCommand, problem));
     }
 
-    private Mono<EvolutionRun> startEvolution(StartCommand startCommand, EvolutionProblem problem) {
+    private Mono<EvolutionRun<?>> startEvolution(StartCommand startCommand,
+            EvolutionProblem<?> problem) {
+        if (problem.config() instanceof LLMPuctTreeConfig config) {
+            return saveEvolutionRun(startCommand, problem).flatMap(run -> {
+                var algo = OpenEvolve.create(run.id(), config,
+                        openAiApi, new SolutionManager() {
+                            @Override
+                            public Mono<Solution<EvolveSolution>> get(UUID id) {
+                                return solutionHandler.findById(id)
+                                        .map(EvolutionSolution::toPopulationSolution);
+                            };
+
+                            @Override
+                            public Mono<Solution<EvolveSolution>> save(
+                                    Solution<EvolveSolution> solution) {
+                                return solutionHandler
+                                        .save(EvolutionSolution.fromPopulationSolution(solution,
+                                                startCommand.problemId()))
+                                        .map(EvolutionSolution::toPopulationSolution)
+                                        .map(sol -> new Solution<>(sol.id(), sol.parentId(),
+                                                sol.runId(), sol.dateCreated(), null, sol.fitness(),
+                                                null));
+                            };
+                        }, Constants.OBJECT_MAPPER);
+                var runner = algo.run(100);
+                return startProcess(run.id(), runner).thenReturn(run);
+            });
+        }
         var listener = new EventListener(eventService, startCommand.problemId());
         return createMAPElites(startCommand, problem, listener).flatMap(mapElites -> {
             setupListeners(mapElites, listener);
-            return createAndSaveRun(startCommand, problem)
+            return saveEvolutionRun(startCommand, problem)
                     .flatMap(run -> startEvolutionProcess(startCommand.problemId(), mapElites,
                             problem, run));
         });
     }
 
     private Mono<MAPElites<EvolveSolution>> createMAPElites(StartCommand startCommand,
-            EvolutionProblem problem, EventListener listener) {
+            EvolutionProblem<?> problem, EventListener listener) {
 
         if (startCommand.runId() != null) {
             return resumeFromRun(startCommand, listener);
         } else if (startCommand.solutionIds() != null && !startCommand.solutionIds().isEmpty()) {
             return startFromSolutions(startCommand, problem, listener);
         } else {
-            return Mono.just(OpenEvolve.create(problem.config(), Constants.OBJECT_MAPPER, List.of(),
-                    openAiApi, List.of(listener)));
+            return Mono.just(OpenEvolve.create((OpenEvolveConfig) problem.config(),
+                    Constants.OBJECT_MAPPER, List.of(), openAiApi, List.of(listener)));
         }
     }
 
@@ -99,13 +128,13 @@ public class OpenEvolveService implements DisposableBean {
             var run = tuple.getT1();
             var state = tuple.getT2();
             var solutions = tuple.getT3();
-            return OpenEvolve.create(run.config(), Constants.OBJECT_MAPPER, List.of(), openAiApi,
+            return OpenEvolve.create((OpenEvolveConfig) run.config(), Constants.OBJECT_MAPPER, List.of(), openAiApi,
                     List.of(listener)).reset(state.state(), run.id(), solutions);
         });
     }
 
     private Mono<MAPElites<EvolveSolution>> startFromSolutions(StartCommand startCommand,
-            EvolutionProblem problem, EventListener listener) {
+            EvolutionProblem<?> problem, EventListener listener) {
 
         return solutionHandler
                 .findAll(solutionHandler.query(Map.of("forIds", startCommand.solutionIds())))
@@ -115,8 +144,8 @@ public class OpenEvolveService implements DisposableBean {
                         return Mono.error(new IllegalArgumentException(
                                 "No solutions found for provided IDs"));
                     }
-                    return Mono.just(OpenEvolve.create(problem.config(), Constants.OBJECT_MAPPER,
-                            solutions, openAiApi, List.of(listener)));
+                    return Mono.just(OpenEvolve.create((OpenEvolveConfig) problem.config(),
+                            Constants.OBJECT_MAPPER, solutions, openAiApi, List.of(listener)));
                 });
     }
 
@@ -125,31 +154,34 @@ public class OpenEvolveService implements DisposableBean {
         mapElites.addListener(new MAPElitesLoggingListener<>());
     }
 
-    private Mono<EvolutionRun> createAndSaveRun(StartCommand startCommand,
-            EvolutionProblem problem) {
-        var run = new EvolutionRun(UUID.randomUUID(), startCommand.problemId(), Instant.now(),
+    private Mono<EvolutionRun<?>> saveEvolutionRun(StartCommand startCommand,
+            EvolutionProblem<?> problem) {
+        var run = new EvolutionRun<>(UUID.randomUUID(), startCommand.problemId(), Instant.now(),
                 problem.config());
-        return runHandler.save(run);
+        return startCommand.runId() != null
+                ? runHandler.findById(startCommand.runId())
+                        .flatMap(r -> runHandler.update(new EvolutionRun<>(r.id(), r.problemId(),
+                                r.dateCreated(), problem.config())))
+                : runHandler.save(run);
     }
 
-    private Mono<EvolutionRun> startEvolutionProcess(UUID problemId,
-            MAPElites<EvolveSolution> mapElites, EvolutionProblem problem, EvolutionRun run) {
+    private Mono<EvolutionRun<?>> startEvolutionProcess(UUID problemId,
+            MAPElites<EvolveSolution> mapElites, EvolutionProblem<?> problem, EvolutionRun<?> run) {
 
-        var evolutionTask =
-                Mono.fromRunnable(() -> mapElites.run(problem.config().mapelites().numIterations()))
-                        .subscribeOn(Schedulers.boundedElastic());
+        var evolutionTask = Mono
+                .fromRunnable(() -> mapElites
+                        .run(((OpenEvolveConfig) problem.config()).mapelites().numIterations()))
+                .subscribeOn(Schedulers.boundedElastic());
         mapElites.setRunId(run.id());
-        activeMapElites.put(run.id(), mapElites);
         return startProcess(run.id(), evolutionTask).thenReturn(run);
     }
 
     public Mono<Started> startProcess(UUID taskId, Mono<?> task) {
         return stopIfRunning(taskId).then(Mono.defer(() -> {
             var disposable =
-                    task.doOnSubscribe(s -> log.info("Task {} started", taskId)).doFinally(s -> {
+                    task.doOnSubscribe(_ -> log.info("Task {} started", taskId)).doFinally(s -> {
                         log.info("Task {} finished with status {}", taskId, s);
                         runningTasks.remove(taskId);
-                        activeMapElites.remove(taskId);
                     }).subscribe();
 
             runningTasks.put(taskId, disposable);
@@ -165,7 +197,6 @@ public class OpenEvolveService implements DisposableBean {
         log.info("Stopping task {}", taskId);
 
         var disposable = runningTasks.remove(taskId);
-        activeMapElites.remove(taskId);
 
         if (disposable != null && !disposable.isDisposed()) {
             disposable.dispose();
@@ -181,8 +212,8 @@ public class OpenEvolveService implements DisposableBean {
     }
 
     public Map<UUID, String> getAllStatuses() {
-        return activeMapElites.keySet().stream().collect(Collectors.toMap(taskId -> taskId,
-                this::getStatus));
+        return runningTasks.keySet().stream()
+                .collect(Collectors.toMap(taskId -> taskId, this::getStatus));
     }
 
     @Override

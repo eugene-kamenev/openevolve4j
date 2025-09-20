@@ -45,7 +45,7 @@ public class WebHandler<E> {
 
 	public Mono<ServerResponse> create(ServerRequest request) {
 		return okResponse(request.bodyToMono(dbHandler.getEntityClass()).flatMap(dbHandler::save)
-				.onErrorMap(IllegalArgumentException.class,
+				.onErrorMap(Throwable.class,
 						e -> new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage())));
 	}
 

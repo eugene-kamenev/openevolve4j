@@ -1,15 +1,12 @@
 package openevolve.db;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.data.relational.core.query.Criteria;
-import org.springframework.data.relational.core.query.Query;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -90,13 +87,14 @@ public class DbHandlers {
 	}
 
 	@Component
-	public static final class EvolutionProblemDbHandler extends DbHandler<EvolutionProblem> {
+	public static final class EvolutionProblemDbHandler extends DbHandler<EvolutionProblem<?>> {
 
 		private static final Map<String, Function<Object, Criteria>> ENTITY_FILTERS =
 				Map.of("byName", val -> Criteria.where("name").is(val));
 
+		@SuppressWarnings("unchecked")
 		public EvolutionProblemDbHandler(R2dbcEntityTemplate tmpl) {
-			super(EvolutionProblem.class, tmpl, ENTITY_FILTERS, _ -> null);
+			super((Class<EvolutionProblem<?>>) (Class<?>) EvolutionProblem.class, tmpl, ENTITY_FILTERS, _ -> null);
 		}
 	}
 }

@@ -17,6 +17,7 @@ import io.r2dbc.postgresql.codec.Json;
 import openevolve.EvolveSolution;
 import openevolve.OpenEvolveConfig;
 import openevolve.BaseAgent.Change;
+import openevolve.api.AlgorithmConfig;
 import openevolve.mapelites.MAPElites.State;
 import openevolve.mapelites.Population.MAPElitesMetadata;
 
@@ -50,13 +51,13 @@ public class Converters {
 		}
 	}
 
-	public static class EvolutionConfigReader extends JsonReaderConverter<OpenEvolveConfig> {
+	public static class EvolutionConfigReader extends JsonReaderConverter<AlgorithmConfig> {
 		public EvolutionConfigReader(ObjectMapper mapper) {
 			super(mapper, new TypeReference<>() {});
 		}
 	}
 
-	public static class EvolutionConfigWriter extends JsonWriterConverter<OpenEvolveConfig> {
+	public static class EvolutionConfigWriter extends JsonWriterConverter<AlgorithmConfig> {
 		public EvolutionConfigWriter(ObjectMapper mapper) {
 			super(mapper);
 		}

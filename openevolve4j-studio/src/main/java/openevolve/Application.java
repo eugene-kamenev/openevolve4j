@@ -13,14 +13,21 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
 import org.springframework.boot.http.client.ClientHttpRequestFactorySettings;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
+import com.fasterxml.jackson.databind.jsontype.NamedType;
+import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
+import openevolve.api.AlgorithmConfig;
 import openevolve.db.DbHandler;
 import openevolve.db.LLMModel;
 import openevolve.db.DbHandlers.LLMModelDbHandler;
+import openevolve.puct.LLMPuctTreeConfig;
 
 @SpringBootApplication
 @EnableConfigurationProperties(Application.Configuration.class)
@@ -38,14 +45,21 @@ public class Application {
 
 	@Bean
 	ObjectMapper objectMapper() {
-		return Constants.OBJECT_MAPPER;
+		var mapper = Constants.OBJECT_MAPPER;
+		// Restrict to AlgorithmConfig subtypes
+        mapper.registerSubtypes(
+            new NamedType(OpenEvolveConfig.class, "MAPELITES"),
+            new NamedType(LLMPuctTreeConfig.class, "TREE")
+        );
+		mapper.addMixIn(AlgorithmConfig.class, JacksonMixIn.TypeInfo.class);
+		return mapper;
 	}
 
 	@Bean
 	RestClient.Builder restClientBuilder() {
 		var builder = RestClient.builder();
 		ClientHttpRequestFactorySettings settings = ClientHttpRequestFactorySettings.defaults()
-				.withConnectTimeout(Duration.ofSeconds(30)).withReadTimeout(Duration.ofMinutes(6));
+				.withConnectTimeout(Duration.ofSeconds(30)).withReadTimeout(Duration.ofMinutes(3));
 		return builder.requestFactory(ClientHttpRequestFactoryBuilder.reactor().build(settings));
 	}
 
@@ -56,6 +70,11 @@ public class Application {
 				.baseUrl(configuration.liteLlm.apiUrl())
 				.restClientBuilder(restClientBuilder)
 				.build();
+	}
+
+	public static abstract class JacksonMixIn {
+		@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "type")
+    	static class TypeInfo {}
 	}
 
 	@Component

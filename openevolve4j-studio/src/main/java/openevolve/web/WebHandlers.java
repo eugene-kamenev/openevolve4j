@@ -65,8 +65,8 @@ public class WebHandlers {
     }
 
     @Component
-    public static class EvolutionHandler extends WebHandler<EvolutionProblem> {
-        public EvolutionHandler(DbHandler<EvolutionProblem> dbHandler, ObjectMapper mapper) {
+    public static class EvolutionHandler extends WebHandler<EvolutionProblem<?>> {
+        public EvolutionHandler(DbHandler<EvolutionProblem<?>> dbHandler, ObjectMapper mapper) {
             super(dbHandler, mapper);
         }
     }
