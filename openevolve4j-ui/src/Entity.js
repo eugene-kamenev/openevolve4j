@@ -68,6 +68,7 @@ export class OpenEvolveConfig {
         this.mapelites = params.mapelites ? new MAPElites(params.mapelites) : new MAPElites();
         this.llm = params.llm ? new LLM(params.llm) : new LLM();
         this.metrics = params.metrics || {};
+        this.type = params.type || "MAPELITES"; // backend discriminator
     }
 }
 
@@ -86,6 +87,30 @@ export class Solution { // wrapper used in some views
         this.cellId = params.cellId;
         this.dateCreated = params.dateCreated; // align with backend (top-level field)
     }
+}
+
+// TREE search configuration (LLM PUCT Tree)
+export class TreeConfig {
+    constructor(params = {}) {
+        this.promptPath = params.promptPath;
+        this.solution = params.solution ? new SolutionConfig(params.solution) : new SolutionConfig();
+        this.llm = params.llm ? new LLM(params.llm) : new LLM();
+        // Array of string arrays representing groups of model IDs
+        this.llmGroups = params.llmGroups || [];
+        this.iterations = params.iterations ?? 100;
+        this.explorationConstant = params.explorationConstant ?? 1.4;
+        this.metrics = params.metrics || {};
+        this.type = "TREE";
+    }
+}
+
+// Factory to instantiate proper config class based on type
+export function createConfig(params = {}) {
+    const type = params.type || "MAPELITES";
+    if (type === "TREE") {
+        return new TreeConfig(params);
+    }
+    return new OpenEvolveConfig(params);
 }
 
 export class EvolveSolution {

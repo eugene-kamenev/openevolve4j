@@ -38,6 +38,6 @@
         <appender-ref ref="Console" />
     </root>
 
-    <logger name="openevolve" level="trace" />
+    <logger name="openevolve" level="debug" />
 
 </configuration>

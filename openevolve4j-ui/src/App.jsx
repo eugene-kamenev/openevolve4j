@@ -75,6 +75,7 @@ function App() {
   // Create default config
   const createDefaultConfig = () => {
     return new OpenEvolveConfig({
+      type: 'MAPELITES',
       promptPath: 'prompts',
       solution: {
         path: 'solution',

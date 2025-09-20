@@ -3,6 +3,7 @@ spring:
   application:
     name: "openevolve4j-web"
   main:
+    allow-bean-definition-overriding: true
     web-application-type: "reactive"
   liquibase:
     enabled: true

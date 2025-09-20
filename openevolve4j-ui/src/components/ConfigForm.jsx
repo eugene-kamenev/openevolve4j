@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Save, X, Info, Eye, Code, Settings, GitBranch, Database, Map, Cpu } from 'lucide-react';
-import { OpenEvolveConfig } from '../Entity';
+import { OpenEvolveConfig, TreeConfig, createConfig } from '../Entity';
 import YamlPreview from './YamlPreview';
 import FormGroup from './forms/FormGroup';
 import ArrayInput from './forms/ArrayInput';
@@ -11,14 +11,19 @@ import './ConfigForm.css';
 const ConfigForm = ({ config, mode, onSave, onCancel }) => {
   const [formData, setFormData] = useState({
     name: '',
+    type: 'MAPELITES',
     promptPath: '',
     solution: {},
-    selection: {},
-    migration: {},
-    repository: {},
-    mapelites: {},
+    selection: {}, // MAPELITES only
+    migration: {}, // MAPELITES only
+    repository: {}, // MAPELITES only
+    mapelites: {}, // MAPELITES only
     llm: {},
-    metrics: {}
+    metrics: {},
+    // TREE-only
+    llmGroups: [],
+    iterations: 100,
+    explorationConstant: 1.4
   });
   
   const [activeTab, setActiveTab] = useState('general');
@@ -56,7 +61,11 @@ const ConfigForm = ({ config, mode, onSave, onCancel }) => {
         repository: configData.repository ? { ...configData.repository } : {},
         mapelites: configData.mapelites ? { ...configData.mapelites } : {},
         llm: configData.llm ? { ...configData.llm } : {},
-        metrics: metrics
+        type: configData.type || 'MAPELITES',
+        metrics: metrics,
+        llmGroups: configData.llmGroups || [],
+        iterations: configData.iterations ?? 100,
+        explorationConstant: configData.explorationConstant ?? 1.4
       });
     } else {
       // For new configs, provide some default metrics
@@ -130,9 +139,13 @@ const ConfigForm = ({ config, mode, onSave, onCancel }) => {
   const tabs = [
     { id: 'general', label: 'General', icon: Info },
     { id: 'solution', label: 'Solution', icon: Code },
-    { id: 'evolution', label: 'Evolution', icon: GitBranch },
-    { id: 'repository', label: 'Repository', icon: Database },
-    { id: 'mapelites', label: 'MAP-Elites', icon: Map },
+    ...(formData.type === 'MAPELITES' ? [
+      { id: 'evolution', label: 'Evolution', icon: GitBranch },
+      { id: 'repository', label: 'Repository', icon: Database },
+      { id: 'mapelites', label: 'MAP-Elites', icon: Map },
+    ] : [
+      { id: 'tree', label: 'Tree Search', icon: GitBranch },
+    ]),
     { id: 'llm', label: 'LLM', icon: Cpu },
     { id: 'metrics', label: 'Metrics', icon: Settings }
   ];
@@ -144,6 +157,24 @@ const ConfigForm = ({ config, mode, onSave, onCancel }) => {
           <Info size={20} />
           General Settings
         </h3>
+        <FormGroup id="config-type" label="Configuration Type">
+          <select
+            id="config-type"
+            value={formData.type}
+            onChange={(e) => {
+              const newType = e.target.value;
+              setFormData(prev => ({
+                ...prev,
+                type: newType,
+              }));
+              // Switch tab to the type-specific tab to guide user
+              setActiveTab(newType === 'MAPELITES' ? 'mapelites' : 'tree');
+            }}
+          >
+            <option value="MAPELITES">MAPELITES</option>
+            <option value="TREE">TREE</option>
+          </select>
+        </FormGroup>
         <FormGroup id="config-name" label="Configuration Name" required error={errors.name}>
           <input
             id="config-name"
@@ -468,6 +499,91 @@ const ConfigForm = ({ config, mode, onSave, onCancel }) => {
     </div>
   );
 
+  const renderTreeTab = () => (
+    <div className="tab-content">
+      <div className="form-section">
+        <h3>
+          <GitBranch size={20} />
+          Tree Search Configuration
+        </h3>
+
+        <div className="form-row">
+          <FormGroup id="tree-iterations" label="Iterations">
+            <input
+              id="tree-iterations"
+              type="number"
+              min="1"
+              value={formData.iterations ?? 100}
+              onChange={(e) => setFormData(prev => ({ ...prev, iterations: parseInt(e.target.value) }))}
+            />
+          </FormGroup>
+          <FormGroup id="tree-cpuct" label="Exploration Constant (cPUCT)">
+            <input
+              id="tree-cpuct"
+              type="number"
+              step="0.1"
+              min="0"
+              value={formData.explorationConstant ?? 1.4}
+              onChange={(e) => setFormData(prev => ({ ...prev, explorationConstant: parseFloat(e.target.value) }))}
+            />
+          </FormGroup>
+        </div>
+
+        <FormGroup label="LLM Groups (by model id)">
+          <div className="array-input">
+            {(formData.llmGroups || []).map((group, gi) => (
+              <div key={gi} className="array-item">
+                <div className="array-input">
+                  {(group || []).map((modelId, mi) => (
+                    <div key={mi} className="array-item">
+                      <input
+                        type="text"
+                        value={modelId}
+                        placeholder="model-id"
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setFormData(prev => {
+                            const groups = [...(prev.llmGroups || [])].map(arr => [...arr]);
+                            groups[gi][mi] = val;
+                            return { ...prev, llmGroups: groups };
+                          });
+                        }}
+                      />
+                      <button type="button" className="btn-remove" onClick={() => {
+                        setFormData(prev => {
+                          const groups = [...(prev.llmGroups || [])].map(arr => [...arr]);
+                          groups[gi].splice(mi, 1);
+                          return { ...prev, llmGroups: groups };
+                        });
+                      }}>Remove</button>
+                    </div>
+                  ))}
+                  <button type="button" className="btn-add" onClick={() => {
+                    setFormData(prev => {
+                      const groups = [...(prev.llmGroups || [])].map(arr => [...arr]);
+                      groups[gi] = [...(groups[gi] || []), ''];
+                      return { ...prev, llmGroups: groups };
+                    });
+                  }}>Add Model</button>
+                </div>
+                <button type="button" className="btn-remove" onClick={() => {
+                  setFormData(prev => {
+                    const groups = [...(prev.llmGroups || [])];
+                    groups.splice(gi, 1);
+                    return { ...prev, llmGroups: groups };
+                  });
+                }}>Remove Group</button>
+              </div>
+            ))}
+            <button type="button" className="btn-add" onClick={() => {
+              setFormData(prev => ({ ...prev, llmGroups: [...(prev.llmGroups || []), ['']] }));
+            }}>Add Group</button>
+          </div>
+        </FormGroup>
+      </div>
+    </div>
+  );
+
   const renderLLMTab = () => (
     <div className="tab-content">
       <LLMSection
@@ -494,6 +610,7 @@ const ConfigForm = ({ config, mode, onSave, onCancel }) => {
       case 'evolution': return renderEvolutionTab();
       case 'repository': return renderRepositoryTab();
       case 'mapelites': return renderMapElitesTab();
+      case 'tree': return renderTreeTab();
       case 'llm': return renderLLMTab();
       case 'metrics': return renderMetricsTab();
       default: return renderGeneralTab();
@@ -523,16 +640,30 @@ const ConfigForm = ({ config, mode, onSave, onCancel }) => {
     }
 
     try {
-      const configToSave = new OpenEvolveConfig({
+      const base = {
         promptPath: formData.promptPath,
         solution: formData.solution,
-        selection: formData.selection,
-        migration: formData.migration,
-        repository: formData.repository,
-        mapelites: formData.mapelites,
         llm: formData.llm,
-        metrics: formData.metrics
-      });
+        metrics: formData.metrics,
+        type: formData.type
+      };
+      let configToSave;
+      if (formData.type === 'TREE') {
+        configToSave = new TreeConfig({
+          ...base,
+          llmGroups: formData.llmGroups,
+          iterations: formData.iterations,
+          explorationConstant: formData.explorationConstant
+        });
+      } else {
+        configToSave = new OpenEvolveConfig({
+          ...base,
+          selection: formData.selection,
+          migration: formData.migration,
+          repository: formData.repository,
+          mapelites: formData.mapelites
+        });
+      }
 
       onSave({
         ...configToSave,

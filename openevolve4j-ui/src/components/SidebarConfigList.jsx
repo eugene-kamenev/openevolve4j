@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react';
 import { Plus, Upload, Search, Trash2, Copy, Download } from 'lucide-react';
 import { ConfigContext } from '../ConfigContext';
 import yaml from 'js-yaml';
-import { OpenEvolveConfig } from '../Entity';
+import { createConfig } from '../Entity';
 import { ProblemsApi } from '../services/api';
 
 const SidebarConfigList = ({ selectedConfigId, onSelectConfig, onCreateNew }) => {
@@ -36,7 +36,7 @@ const SidebarConfigList = ({ selectedConfigId, onSelectConfig, onCreateNew }) =>
     try {
       const duplicatedConfig = {
         name: `${config.name} (Copy)`,
-        config: new OpenEvolveConfig(config.config)
+        config: createConfig(config.config)
       };
       const created = await ProblemsApi.create(duplicatedConfig);
       setConfigs(prev => [...prev, created]);
@@ -51,13 +51,19 @@ const SidebarConfigList = ({ selectedConfigId, onSelectConfig, onCreateNew }) =>
   const handleExport = (config, event) => {
     event.stopPropagation();
     const exportConfig = {
+      type: config.config.type || 'MAPELITES',
       promptPath: config.config.promptPath,
       llm: config.config.llm,
       solution: config.config.solution,
+      // MAPELITES fields
       selection: config.config.selection,
       migration: config.config.migration,
       repository: config.config.repository,
       mapelites: config.config.mapelites,
+      // TREE fields
+      llmGroups: config.config.llmGroups,
+      iterations: config.config.iterations,
+      explorationConstant: config.config.explorationConstant,
       metrics: config.config.metrics
     };
     const yamlStr = yaml.dump(exportConfig, { indent: 2, lineWidth: -1, noRefs: true, sortKeys: false });
@@ -87,7 +93,7 @@ const SidebarConfigList = ({ selectedConfigId, onSelectConfig, onCreateNew }) =>
           }
           const body = {
             name: file.name.replace(/\.(yml|yaml|json)$/, '') || 'Imported Config',
-            config: new OpenEvolveConfig(importedConfig)
+            config: createConfig(importedConfig)
           };
           const created = await ProblemsApi.create(body);
           setConfigs(prev => [...prev, created]);

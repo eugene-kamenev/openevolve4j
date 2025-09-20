@@ -10,13 +10,19 @@ const YamlPreview = ({ config, isOpen, onClose }) => {
   const generateYaml = () => {
     // Create a clean config object for YAML export
     const cleanConfig = {
+      type: config.type || 'MAPELITES',
       promptPath: config.promptPath,
       llm: config.llm,
       solution: config.solution,
+      // MAPELITES fields
       selection: config.selection,
       migration: config.migration,
       repository: config.repository,
       mapelites: config.mapelites,
+      // TREE fields
+      llmGroups: config.llmGroups,
+      iterations: config.iterations,
+      explorationConstant: config.explorationConstant,
       metrics: config.metrics
     };
     
