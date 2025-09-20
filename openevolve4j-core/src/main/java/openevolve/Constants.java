@@ -84,6 +84,7 @@ public final class Constants {
 					.enable(JsonReadFeature.ALLOW_MISSING_VALUES)
 					.enable(JsonReadFeature.ALLOW_NON_NUMERIC_NUMBERS)
 					.enable(JsonReadFeature.ALLOW_TRAILING_COMMA)
+					.disable(SerializationFeature.WRITE_DURATIONS_AS_TIMESTAMPS)
 					.configure(SerializationFeature.WRITE_DATE_TIMESTAMPS_AS_NANOSECONDS, false)
 					.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
 					.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false).build();

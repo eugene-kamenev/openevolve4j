@@ -204,23 +204,22 @@ public final class BashExecutor {
 				Collection<String> metricNames) {
 			if (timedOut()) {
 				var errorMessage = "Bash script timed out";
-				return Map.of(Constants.COMBINED_SCORE, 0.0, "error", errorMessage);
+				return Map.of("error", errorMessage);
 			}
 			if (exitCode() != 0) {
 				var errorMessage = stderr() != null ? stderr()
 						: "Bash script failed with exit code " + exitCode();
-				return Map.of(Constants.COMBINED_SCORE, 0.0, "error", errorMessage);
+				return Map.of("error", errorMessage);
 			}
 			if (stdout() == null || stdout().isEmpty()) {
 				var errorMessage = "Bash script did not produce any output";
-				return Map.of(Constants.COMBINED_SCORE, 0.0, "error", errorMessage);
+				return Map.of("error", errorMessage);
 			}
 			Map<String, Object> metrics = Util.parseJSON(stdout(), mapper, Constants.MAP_TYPE_REF,
 					(m) -> m.keySet().stream().filter(name -> metricNames.contains(name))
 							.findFirst().isPresent());
 			return metrics != null ? metrics
-					: Map.of(Constants.COMBINED_SCORE, 0.0, "error",
-							"No valid metrics found in output");
+					: Map.of("error", "No valid metrics found in output");
 		}
 	}
 }

@@ -3,10 +3,17 @@ package openevolve;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
+import java.util.UUID;
+import java.util.function.Supplier;
 import org.springframework.ai.openai.api.OpenAiApi;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import openevolve.OpenEvolveConfig.LLM;
 import openevolve.mapelites.DefaultPopulation;
 import openevolve.mapelites.listener.RepositoryListener;
+import openevolve.puct.LLMPuctTree;
+import openevolve.puct.LLMPuctTree.SolutionManager;
+import openevolve.puct.LLMPuctTreeConfig;
 import openevolve.mapelites.MAPElites;
 import openevolve.mapelites.Migration;
 import openevolve.mapelites.FeatureScaler.ScaleMethod;
@@ -14,6 +21,26 @@ import openevolve.util.SolutionUtil;
 import openevolve.util.Util;
 
 public class OpenEvolve {
+
+	public static LLMPuctTree create(UUID runId, LLMPuctTreeConfig config, OpenAiApi openAiApi,
+			SolutionManager manager, ObjectMapper mapper) {
+		var structure = SolutionUtil.initPath(config.solution().filePattern(), null,
+				config.solution().path());
+		Supplier<EvolveSolution> rootSupplier = () -> new EvolveSolution(structure.target(), null,
+				Map.of(), Map.of("fullRewrite", config.solution().fullRewrite()));
+		var llm = config.llm().models();
+		var random = new Random(42);
+		var agents = new ArrayList<OpenEvolveAgent>();
+		for (var model : llm) {
+			var ensemble = new LLMEnsemble(random, new LLM(List.of(model)), openAiApi);
+			agents.add(new OpenEvolveAgent(config.prompts(), ensemble, random));
+		}
+		var evaluator = new OpenEvolveEvaluator(config.solution().runner(),
+				config.solution().path(), structure.linked(), config.metrics().keySet(),
+				config.solution().evalTimeout(), mapper);
+		return new LLMPuctTree(runId, manager, rootSupplier, config.explorationConstant(),
+				config.comparator(), agents, evaluator);
+	}
 
 	public static MAPElites<EvolveSolution> create(OpenEvolveConfig config, ObjectMapper mapper,
 			List<EvolveSolution> initialSolutions, OpenAiApi openAiApi,

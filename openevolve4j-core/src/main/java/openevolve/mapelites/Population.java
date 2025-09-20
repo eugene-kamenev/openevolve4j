@@ -76,17 +76,13 @@ public interface Population<T> {
 
 		public Solution {
 			Objects.requireNonNull(id, "id must not be null");
-			Objects.requireNonNull(solution, "solution must not be null");
-			Objects.requireNonNull(metadata, "metadata must not be null");
 			if (fitness == null || fitness.isEmpty()) {
 				throw new IllegalArgumentException("fitness must not be null or empty");
 			}
-			
 		}
 
 		public static String cellToKey(int[] cell) {
-			return String.join("-",
-					Arrays.stream(cell).mapToObj(String::valueOf).toArray(String[]::new));
+			return String.join("-", Arrays.stream(cell).mapToObj(String::valueOf).toArray(String[]::new));
 		}
 
 		public Solution<T> copy(int targetIslandId) {

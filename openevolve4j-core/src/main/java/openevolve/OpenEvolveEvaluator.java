@@ -84,7 +84,7 @@ public class OpenEvolveEvaluator implements Function<EvolveSolution, Map<String,
 		} catch (Throwable t) {
 			var errorMessage = "Failed to evaluate bash script: " + runner;
 			trace("Evaluation failed: {} - {}", errorMessage, t.getMessage());
-			return Map.of(Constants.COMBINED_SCORE, 0.0, "error", errorMessage);
+			return Map.of("error", errorMessage);
 		}
 	}
 }

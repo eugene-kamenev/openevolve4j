@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import openevolve.mapelites.listener.MAPElitesListener;
 import openevolve.mapelites.listener.Listener;
 import openevolve.Constants;
+import openevolve.api.Algorithm;
 import openevolve.mapelites.FeatureScaler.ScaleMethod;
 import openevolve.mapelites.Population.Island;
 import openevolve.mapelites.Population.PopulationState;
@@ -20,7 +21,7 @@ import openevolve.mapelites.Population.MAPElitesMetadata;
 /**
  * Multi-dimensional Archive of Phenotypic Elites with Islands
  */
-public class MAPElites<T> {
+public class MAPElites<T> implements Algorithm {
 
 	private static final Logger LOG = LoggerFactory.getLogger(MAPElites.class);
 

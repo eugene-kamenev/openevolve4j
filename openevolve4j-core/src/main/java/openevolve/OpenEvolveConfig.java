@@ -16,6 +16,7 @@ import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.cfg.ContextAttributes;
+import openevolve.api.AlgorithmConfig;
 import openevolve.mapelites.ParetoComparator;
 import openevolve.util.Util;
 
@@ -24,7 +25,7 @@ public record OpenEvolveConfig(
 		Repository repository, MAPElites mapelites, LLM llm, Map<String, Boolean> metrics, Path promptPath,
 		@JsonIgnore Comparator<openevolve.mapelites.Population.Solution<EvolveSolution>> comparator,
 		@JsonIgnore Predicate<openevolve.mapelites.Population.Solution<EvolveSolution>> stopCondition,
-		@JsonIgnore Map<String, List<PromptTemplate>> prompts) {
+		@JsonIgnore Map<String, List<PromptTemplate>> prompts) implements AlgorithmConfig {
 
 	public OpenEvolveConfig {
 		if (metrics == null || metrics.isEmpty()) {
