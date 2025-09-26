@@ -1,127 +1,101 @@
 // Entity helpers aligned to backend records
 // Backend entities:
-// - EvolutionProblem: { id: UUID, name: string, config: OpenEvolveConfig }
-// - EvolutionRun: { id: UUID, problemId: UUID, dateCreated: ISO string, config: OpenEvolveConfig }
-// - EvolutionSolution: { id: UUID, parentId?: UUID, problemId: UUID, runId: UUID, dateCreated: ISO string, solution: EvolveSolution, fitness: object, metadata: object }
-// In UI we usually consume list of EvolutionSolution where dateCreated may be present at top-level
+// - Problem: { id: UUID, name: string, config: PuctTreeConfig }
+// - LLMModel: { id: UUID, name: string }
+// - Event<T>: { id: UUID, problemId: UUID, dateCreated: Instant, payload: T }
+// - Event payload types: Solution, Run, Progress
 
-export class SolutionConfig {
-    constructor(params = {}) {
-        this.workspace = params.workspace || "workspace";
-        this.path = params.path || "solution";
-        this.runner = params.runner || "run.sh";
-        this.evalTimeout = params.evalTimeout || "PT120S";
-        this.pattern = params.pattern || ".*\\.py$";
-        this.fullRewrite = params.fullRewrite ?? true;
-    }
+export class Problem {
+  constructor(params = {}) {
+    this.id = params.id || null;
+    this.name = params.name || '';
+    this.config = params.config || createDefaultPuctTreeConfig();
+  }
 }
 
-export class Selection {
-    constructor(params = {}) {
-        this.seed = params.seed ?? 42;
-        this.explorationRatio = params.explorationRatio ?? 0.1;
-        this.exploitationRatio = params.exploitationRatio ?? 0.1;
-        this.eliteSelectionRatio = params.eliteSelectionRatio ?? 0.1;
-        this.numInspirations = params.numInspirations ?? 5;
-        this.numberDiverse = params.numberDiverse ?? 5;
-        this.numberTop = params.numberTop ?? 5;
-    }
+export class LLMModel {
+  constructor(params = {}) {
+    this.id = params.id || null;
+    this.name = params.name || '';
+  }
 }
 
-export class Migration {
-    constructor(params = {}) {
-        this.rate = params.rate ?? 0.1;
-        this.interval = params.interval ?? 10;
-    }
+export class Event {
+  constructor(params = {}) {
+    this.id = params.id || null;
+    this.problemId = params.problemId || null;
+    this.dateCreated = params.dateCreated || null;
+    this.payload = params.payload || {};
+  }
 }
 
-export class Repository {
-    constructor(params = {}) {
-        this.checkpointInterval = params.checkpointInterval ?? 10;
-        this.populationSize = params.populationSize ?? 50;
-        this.archiveSize = params.archiveSize ?? 10;
-        this.islands = params.islands ?? 2;
-    }
+// Event payload classes
+export class Solution {
+  constructor(params = {}) {
+    this.id = params.id || null;
+    this.parentId = params.parentId || null;
+    this.runId = params.runId || null;
+    this.data = params.data || {}; // SourceTree
+    this.fitness = params.fitness || {};
+  }
 }
 
-export class MAPElites {
-    constructor(params = {}) {
-        this.numIterations = params.numIterations ?? 100;
-        this.bins = params.bins ?? 10;
-        this.dimensions = params.dimensions ?? ["score", "complexity", "diversity"];
-    }
+export class Run {
+  constructor(params = {}) {
+    this.id = params.id || null;
+  }
 }
 
-export class LLM {
-    constructor(params = {}) {
-        this.models = params.models || [];
-    }
+export class Progress {
+  constructor(params = {}) {
+    this.runId = params.runId || null;
+    this.message = params.message || '';
+  }
 }
 
-export class OpenEvolveConfig {
-    constructor(params = {}) {
-        this.promptPath = params.promptPath;
-        this.solution = params.solution ? new SolutionConfig(params.solution) : new SolutionConfig();
-        this.selection = params.selection ? new Selection(params.selection) : new Selection();
-        this.migration = params.migration ? new Migration(params.migration) : new Migration();
-        this.repository = params.repository ? new Repository(params.repository) : new Repository();
-        this.mapelites = params.mapelites ? new MAPElites(params.mapelites) : new MAPElites();
-        this.llm = params.llm ? new LLM(params.llm) : new LLM();
-        this.metrics = params.metrics || {};
-        this.type = params.type || "MAPELITES"; // backend discriminator
-    }
+// SourceTree data structure
+export class SourceTree {
+  constructor(params = {}) {
+    this.files = params.files || {}; // Map<Path, String>
+    this.metadata = params.metadata || {};
+  }
+  
+  fullRewrite() {
+    return this.metadata.fullRewrite || false;
+  }
+
+  model() {
+    return this.metadata.llmModel || null;
+  }
 }
 
-export class Solution { // wrapper used in some views
-    constructor(params = {}) {
-        this.id = params.id;
-        this.parentId = params.parentId;
-        this.problemId = params.problemId;
-        this.runId = params.runId;
-        this.solution = new EvolveSolution(params.solution);
-        this.migratedFrom = params.migratedFrom;
-        this.fitness = params.fitness;
-        this.iteration = params.iteration;
-        this.islandId = params.islandId;
-        this.cell = params.cell;
-        this.cellId = params.cellId;
-        this.dateCreated = params.dateCreated; // align with backend (top-level field)
+// Helper to create default PuctTreeConfig
+export function createDefaultPuctTreeConfig() {
+  return {
+    solution: {
+      workspace: "/tmp",
+      path: "solution",
+      runner: "runner",
+      evalTimeout: "PT1M", // 1 minute
+      fullRewrite: true,
+      pattern: ".*\\.py$"
+    },
+    promptPath: null,
+    llm: {
+      models: []
+    },
+    iterations: 1000,
+    explorationConstant: 0.1,
+    metrics: {
+      score: true
     }
+  };
 }
 
-// TREE search configuration (LLM PUCT Tree)
-export class TreeConfig {
-    constructor(params = {}) {
-        this.promptPath = params.promptPath;
-        this.solution = params.solution ? new SolutionConfig(params.solution) : new SolutionConfig();
-        this.llm = params.llm ? new LLM(params.llm) : new LLM();
-        // Array of string arrays representing groups of model IDs
-        this.llmGroups = params.llmGroups || [];
-        this.iterations = params.iterations ?? 100;
-        this.explorationConstant = params.explorationConstant ?? 1.4;
-        this.metrics = params.metrics || {};
-        this.type = "TREE";
-    }
-}
-
-// Factory to instantiate proper config class based on type
-export function createConfig(params = {}) {
-    const type = params.type || "MAPELITES";
-    if (type === "TREE") {
-        return new TreeConfig(params);
-    }
-    return new OpenEvolveConfig(params);
-}
-
-export class EvolveSolution {
-    constructor(params = {}) {
-        this.files = params.files || {};
-        this.changes = params.changes;
-        this.parentMetrics = params.parentMetrics || {};
-        this.metadata = params.metadata || {};
-    }
-
-    get fullRewrite() {
-        return this.metadata?.fullRewrite ?? false;
-    }
+// Helper to create a new problem
+export function createProblem(name = 'New Problem', config = null) {
+  return new Problem({
+    name,
+    config: config || createDefaultPuctTreeConfig()
+  });
 }
