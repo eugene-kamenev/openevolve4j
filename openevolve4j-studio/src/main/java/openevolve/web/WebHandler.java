@@ -1,14 +1,8 @@
 package openevolve.web;
 
-import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.relational.core.query.Query;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.web.reactive.function.server.RouterFunction;
-import org.springframework.web.reactive.function.server.RouterFunctions;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import org.springframework.web.server.ResponseStatusException;
@@ -19,15 +13,15 @@ import openevolve.db.DbHandler;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import static reactor.function.TupleUtils.function;
+import static openevolve.web.WebUtil.all;
+import static openevolve.web.WebUtil.ok;
+import static openevolve.web.WebUtil.count;
+import static openevolve.web.WebUtil.list;
 
 public class WebHandler<E> {
 
-	public static final Mono<Object> NOT_FOUND =
-			Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
-
-	final DbHandler<E> dbHandler;
-	final ObjectMapper mapper;
+	protected final DbHandler<E> dbHandler;
+	protected final ObjectMapper mapper;
 
 	public WebHandler(DbHandler<E> dbHandler, ObjectMapper mapper) {
 		this.dbHandler = dbHandler;
@@ -35,32 +29,30 @@ public class WebHandler<E> {
 	}
 
 	public Mono<ServerResponse> index(ServerRequest request) {
-		return okResponse(Mono.zip(listResources(request).collectList(), countResources(request))
-				.map(function(IndexResponse::new)));
+		return list(listResources(request), countResources(request));
 	}
 
 	public Mono<ServerResponse> get(ServerRequest request) {
-		return okResponse(dbHandler.findById(request.pathVariable("id")));
+		return ok(dbHandler.findById(request.pathVariable("id")));
 	}
 
 	public Mono<ServerResponse> create(ServerRequest request) {
-		return okResponse(request.bodyToMono(dbHandler.getEntityClass()).flatMap(dbHandler::save)
+		return ok(request.bodyToMono(dbHandler.getEntityClass()).flatMap(dbHandler::save)
 				.onErrorMap(Throwable.class,
 						e -> new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage())));
 	}
 
 	public Mono<ServerResponse> update(ServerRequest request) {
-    String id = request.pathVariable("id");
-    
-    return dbHandler.findById(id)
-            .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND)))
-            .zipWith(request.bodyToMono(String.class))
-            .map(tuple -> updateEntityFromJson(tuple.getT1(), tuple.getT2()))
-            .flatMap(dbHandler::update)
-            .flatMap(entity -> okResponse(Mono.just(entity)))
-            .onErrorMap(IllegalArgumentException.class,
-                    e -> new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage()));
-}
+		String id = request.pathVariable("id");
+
+		return dbHandler.findById(id)
+				.switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND)))
+				.zipWith(request.bodyToMono(String.class))
+				.map(tuple -> updateEntityFromJson(tuple.getT1(), tuple.getT2()))
+				.flatMap(dbHandler::update).flatMap(entity -> ok(Mono.just(entity)))
+				.onErrorMap(IllegalArgumentException.class,
+						e -> new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage()));
+	}
 
 	public Mono<ServerResponse> delete(ServerRequest request) {
 		return dbHandler.deleteById(request.pathVariable("id"))
@@ -68,63 +60,35 @@ public class WebHandler<E> {
 						IllegalArgumentException.class, _ -> ServerResponse.notFound().build());
 	}
 
-	Flux<E> listResources(ServerRequest request) {
-		Query filteredQuery = dbHandler.query(getParsedFilters(request));
-		return dbHandler.findAllPaginated(filteredQuery, getSort(request), getOffset(request),
-				getLimit(request));
+	protected Flux<E> listResources(ServerRequest request) {
+		Map<String, Object> filters = getParsedFilters(request);
+		return all(dbHandler, filters, sort(request), offset(request), limit(request));
 	}
 
-	Mono<Long> countResources(ServerRequest request) {
-		Query filteredQuery = dbHandler.query(getParsedFilters(request));
-		return dbHandler.count(filteredQuery);
+	protected Mono<Long> countResources(ServerRequest request) {
+		Map<String, Object> filters = getParsedFilters(request);
+		return count(dbHandler, filters);
 	}
 
-	Map<String, Object> getParsedFilters(ServerRequest request) {
-		var filters = request.queryParams().getFirst("filters");
+	protected Map<String, Object> getParsedFilters(ServerRequest request) {
 		try {
+			var filters = request.queryParams().getFirst("filters");
 			return parseFilters(filters);
 		} catch (IllegalArgumentException e) {
 			throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
 		}
 	}
 
-	Sort getSort(ServerRequest request) {
-		var sortParam = request.queryParams().getFirst("sort");
-		var orderParam = request.queryParams().getFirst("order");
-		if (sortParam != null && !sortParam.isBlank() && orderParam != null
-				&& !orderParam.isBlank()) {
-			var direction = Sort.Direction.ASC;
-			if (orderParam.equalsIgnoreCase("desc")) {
-				direction = Sort.Direction.DESC;
-			}
-			return Sort.by(direction, sortParam);
-		}
-		return Sort.unsorted();
+	protected Sort sort(ServerRequest request) {
+		return WebUtil.sort(request);
 	}
 
-	long getOffset(ServerRequest request) {
-		var offsetParam = request.queryParams().getFirst("offset");
-		if (offsetParam != null && !offsetParam.isBlank()) {
-			try {
-				return Long.parseLong(offsetParam);
-			} catch (NumberFormatException e) {
-				throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid offset", e);
-			}
-		}
-		return 0;
+	protected long offset(ServerRequest request) {
+		return WebUtil.offset(request);
 	}
 
-	int getLimit(ServerRequest request) {
-		int limit = 10;
-		var limitParam = request.queryParams().getFirst("limit");
-		if (limitParam != null && !limitParam.isBlank()) {
-			try {
-				limit = Integer.parseInt(limitParam);
-			} catch (NumberFormatException e) {
-				throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid limit", e);
-			}
-		}
-		return Math.min(limit, 100);
+	protected int limit(ServerRequest request) {
+		return WebUtil.limit(request);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -149,30 +113,5 @@ public class WebHandler<E> {
 			}
 		}
 		return Map.of();
-	}
-
-	protected static <P> Mono<ServerResponse> okResponse(Mono<P> body) {
-		return body.flatMap(
-				b -> ServerResponse.ok().contentType(MediaType.APPLICATION_JSON).bodyValue(b))
-				.switchIfEmpty(ServerResponse.notFound().build());
-	}
-
-	record IndexResponse<T>(List<T> list, long count) {
-	}
-
-	public static RouterFunction<ServerResponse> defaultRoutes(String basePath,
-			WebHandler<?> handler, Consumer<RouterFunctions.Builder> custom) {
-		var builder = RouterFunctions.route();
-		custom.accept(builder);
-		builder.GET(basePath, handler::index)
-				.GET(basePath + "/{id}", handler::get).POST(basePath, handler::create)
-				.PUT(basePath + "/{id}", handler::update)
-				.DELETE(basePath + "/{id}", handler::delete);
-		return builder.build();
-	}
-
-	public static RouterFunction<ServerResponse> defaultRoutes(String basePath,
-			WebHandler<?> handler) {
-		return defaultRoutes(basePath, handler, _ -> {});
 	}
 }

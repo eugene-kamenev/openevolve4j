@@ -1,5 +1,6 @@
 package openevolve;
 
+import java.io.Serializable;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
@@ -13,21 +14,22 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
 import org.springframework.boot.http.client.ClientHttpRequestFactorySettings;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.databind.jsontype.NamedType;
-import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
-import openevolve.api.AlgorithmConfig;
 import openevolve.db.DbHandler;
-import openevolve.db.LLMModel;
 import openevolve.db.DbHandlers.LLMModelDbHandler;
-import openevolve.puct.LLMPuctTreeConfig;
+import openevolve.domain.FitnessAware;
+import openevolve.domain.SourceTree;
+import openevolve.studio.domain.LLMModel;
+import openevolve.studio.domain.Event.Solution;
+import openevolve.studio.domain.Event.Payload;
+import openevolve.studio.domain.Event.Progress;
+import openevolve.studio.domain.Event.Run;
 
 @SpringBootApplication
 @EnableConfigurationProperties(Application.Configuration.class)
@@ -46,12 +48,14 @@ public class Application {
 	@Bean
 	ObjectMapper objectMapper() {
 		var mapper = Constants.OBJECT_MAPPER;
-		// Restrict to AlgorithmConfig subtypes
-        mapper.registerSubtypes(
-            new NamedType(OpenEvolveConfig.class, "MAPELITES"),
-            new NamedType(LLMPuctTreeConfig.class, "TREE")
+         mapper.registerSubtypes(
+            new NamedType(SourceTree.class, "SOURCE_TREE"),
+			new NamedType(Solution.class, "SOLUTION"),
+			new NamedType(Run.class, "EVOLUTION_RUN"),
+			new NamedType(Progress.class, "PROGRESS")
         );
-		mapper.addMixIn(AlgorithmConfig.class, JacksonMixIn.TypeInfo.class);
+		mapper.addMixIn(Payload.class, JacksonMixIn.TypeInfo.class);
+		mapper.addMixIn(FitnessAware.Data.class, JacksonMixIn.TypeInfo.class);
 		return mapper;
 	}
 
@@ -59,7 +63,7 @@ public class Application {
 	RestClient.Builder restClientBuilder() {
 		var builder = RestClient.builder();
 		ClientHttpRequestFactorySettings settings = ClientHttpRequestFactorySettings.defaults()
-				.withConnectTimeout(Duration.ofSeconds(30)).withReadTimeout(Duration.ofMinutes(3));
+				.withConnectTimeout(Duration.ofSeconds(30)).withReadTimeout(Duration.ofMinutes(4));
 		return builder.requestFactory(ClientHttpRequestFactoryBuilder.reactor().build(settings));
 	}
 

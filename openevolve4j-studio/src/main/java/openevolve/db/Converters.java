@@ -14,12 +14,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.r2dbc.postgresql.codec.Json;
-import openevolve.EvolveSolution;
-import openevolve.OpenEvolveConfig;
-import openevolve.BaseAgent.Change;
-import openevolve.api.AlgorithmConfig;
-import openevolve.mapelites.MAPElites.State;
-import openevolve.mapelites.Population.MAPElitesMetadata;
+import openevolve.domain.PuctTreeConfig;
+import openevolve.studio.domain.Event.Payload;
 
 @Configuration
 public class Converters {
@@ -28,61 +24,49 @@ public class Converters {
 	public R2dbcCustomConversions r2dbcCustomConversions(ObjectMapper mapper) {
 		return R2dbcCustomConversions.of(PostgresDialect.INSTANCE,
 				List.of(
-						new EvolveSolutionReader(mapper),
-						new EvolveSolutionWriter(mapper),
-						new MetadataReader(mapper), new MetadataWriter(mapper),
 						new EvolutionConfigReader(mapper),
 						new EvolutionConfigWriter(mapper),
-						new StateReader(mapper), new StateWriter(mapper), new MapReader(mapper),
-						new MapWriter(mapper), new ChangesReader(mapper), new ChangesWriter(mapper),
+						new MapReader(mapper),
+						new MapWriter(mapper),
 						new MapWithPathKeyToStringReader(mapper),
-						new MapWithPathKeyToStringWriter(mapper)));
+						new MapWithPathKeyToStringWriter(mapper),
+						new SolutionReader(mapper),
+						new SolutionWriter(mapper))
+		);
 	}
 
-	public static class MetadataReader extends JsonReaderConverter<MAPElitesMetadata> {
-		public MetadataReader(ObjectMapper mapper) {
+	public static class SolutionReader extends JsonReaderConverter<Payload> {
+		public SolutionReader(ObjectMapper mapper) {
 			super(mapper, new TypeReference<>() {});
 		}
 	}
 
-	public static class MetadataWriter extends JsonWriterConverter<MAPElitesMetadata> {
-		public MetadataWriter(ObjectMapper mapper) {
+	public static class SolutionWriter extends JsonWriterConverter<Payload> {
+		public SolutionWriter(ObjectMapper mapper) {
 			super(mapper);
 		}
 	}
 
-	public static class EvolutionConfigReader extends JsonReaderConverter<AlgorithmConfig> {
+	public static class SourceTreeReader extends JsonReaderConverter<openevolve.domain.SourceTree> {
+		public SourceTreeReader(ObjectMapper mapper) {
+			super(mapper, new TypeReference<>() {});
+		}
+	}
+
+	public static class SourceTreeWriter extends JsonWriterConverter<openevolve.domain.SourceTree> {
+		public SourceTreeWriter(ObjectMapper mapper) {
+			super(mapper);
+		}
+	}
+
+	public static class EvolutionConfigReader extends JsonReaderConverter<PuctTreeConfig> {
 		public EvolutionConfigReader(ObjectMapper mapper) {
 			super(mapper, new TypeReference<>() {});
 		}
 	}
 
-	public static class EvolutionConfigWriter extends JsonWriterConverter<AlgorithmConfig> {
+	public static class EvolutionConfigWriter extends JsonWriterConverter<PuctTreeConfig> {
 		public EvolutionConfigWriter(ObjectMapper mapper) {
-			super(mapper);
-		}
-	}
-
-	public static class EvolveSolutionReader extends JsonReaderConverter<EvolveSolution> {
-		public EvolveSolutionReader(ObjectMapper mapper) {
-			super(mapper, new TypeReference<>() {});
-		}
-	}
-
-	public static class EvolveSolutionWriter extends JsonWriterConverter<EvolveSolution> {
-		public EvolveSolutionWriter(ObjectMapper mapper) {
-			super(mapper);
-		}
-	}
-
-	public static class StateReader extends JsonReaderConverter<State> {
-		public StateReader(ObjectMapper mapper) {
-			super(mapper, new TypeReference<>() {});
-		}
-	}
-
-	public static class StateWriter extends JsonWriterConverter<State> {
-		public StateWriter(ObjectMapper mapper) {
 			super(mapper);
 		}
 	}
@@ -95,18 +79,6 @@ public class Converters {
 
 	public static class MapWriter extends JsonWriterConverter<Map<String, Object>> {
 		public MapWriter(ObjectMapper mapper) {
-			super(mapper);
-		}
-	}
-
-	public static class ChangesReader extends JsonReaderConverter<Map<Path, List<Change>>> {
-		public ChangesReader(ObjectMapper mapper) {
-			super(mapper, new TypeReference<>() {});
-		}
-	}
-
-	public static class ChangesWriter extends JsonWriterConverter<Map<Path, List<Change>>> {
-		public ChangesWriter(ObjectMapper mapper) {
 			super(mapper);
 		}
 	}

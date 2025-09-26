@@ -17,14 +17,16 @@ spring:
     password: postgres
     pool:
       enabled: true
-      initial-size: 1
-      max-size: 2
+      initial-size: 5
+      max-size: 10
 ---
 server:
   port: 7070
 
 ---
 openevolve:
+  webSearch:
+    tavilyApiKey:
   liteLlm:
     apiUrl: http://192.168.50.99:4000
     apiKey: sk-9DzvwVXmpXKAcoWTgmZnRg

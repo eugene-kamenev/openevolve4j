@@ -39,5 +39,6 @@
     </root>
 
     <logger name="openevolve" level="debug" />
+    <logger name="deepresearch" level="debug" />
 
 </configuration>

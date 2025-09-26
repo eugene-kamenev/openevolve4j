@@ -7,19 +7,25 @@ databaseChangeLog:
             dbms: postgresql
             sql: "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
   - changeSet:
-      id: 20250915-1-initial
+      id: 20250915-1-create-problem-table
       author: openevolve
       changes:
-        # evolution_problem
         - createTable:
-            tableName: evolution_problem
+            tableName: problem
             columns:
               - column:
                   name: id
-                  type: UUID
+                  type: uuid
                   constraints:
                     primaryKey: true
                     nullable: false
+                  defaultValueComputed: gen_random_uuid()
+              - column:
+                  name: date_created
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+                  defaultValueComputed: now()
               - column:
                   name: name
                   type: varchar(255)
@@ -27,153 +33,99 @@ databaseChangeLog:
                     nullable: false
               - column:
                   name: config
-                  type: JSONB
-        - addUniqueConstraint:
-            tableName: evolution_problem
-            columnNames: name
-            constraintName: uq_evolution_problem_name
+                  type: jsonb
+                  constraints:
+                    nullable: false
 
+  - changeSet:
+      id: 20250915-2-create-llm-model-table
+      author: openevolve
+      changes:
         - createTable:
             tableName: llm_model
             columns:
               - column:
                   name: id
-                  type: UUID
+                  type: uuid
                   constraints:
                     primaryKey: true
                     nullable: false
+                  defaultValueComputed: gen_random_uuid()
               - column:
                   name: name
                   type: varchar(255)
                   constraints:
                     nullable: false
-        - addUniqueConstraint:
-            tableName: llm_model
-            columnNames: name
-            constraintName: uq_llm_model_name
-            
-        # evolution_run
+                    unique: true
+              - column:
+                  name: date_created
+                  type: timestamp with time zone
+                  constraints:
+                    nullable: false
+                  defaultValueComputed: now()
+
+  - changeSet:
+      id: 20250915-3-create-events-table
+      author: openevolve
+      changes:
         - createTable:
-            tableName: evolution_run
+            tableName: events
             columns:
               - column:
                   name: id
-                  type: UUID
+                  type: uuid
                   constraints:
                     primaryKey: true
                     nullable: false
+                  defaultValueComputed: gen_random_uuid()
               - column:
                   name: problem_id
-                  type: UUID
+                  type: uuid
                   constraints:
                     nullable: false
-                    referencedTableName: evolution_problem
-                    referencedColumnNames: id
-                    foreignKeyName: fk_run_problem
               - column:
                   name: date_created
-                  type: TIMESTAMPTZ
-                  defaultValueComputed: NOW()
+                  type: timestamp with time zone
                   constraints:
                     nullable: false
+                  defaultValueComputed: now()
               - column:
-                  name: config
-                  type: JSONB
+                  name: payload
+                  type: jsonb
+                  constraints:
+                    nullable: false
 
-        # evolution_state
-        - createTable:
-            tableName: evolution_state
-            columns:
-              - column:
-                  name: run_id
-                  type: UUID
-                  constraints:
-                    primaryKey: true
-                    nullable: false
-                    referencedTableName: evolution_run
-                    referencedColumnNames: id
-                    foreignKeyName: fk_state_run
-              - column:
-                  name: date_created
-                  type: TIMESTAMPTZ
-                  defaultValueComputed: NOW()
-                  constraints:
-                    nullable: false
-              - column:
-                  name: state
-                  type: JSONB
+  - changeSet:
+      id: 20250915-4-add-foreign-keys
+      author: openevolve
+      changes:
+        - addForeignKeyConstraint:
+            baseTableName: events
+            baseColumnNames: problem_id
+            referencedTableName: problem
+            referencedColumnNames: id
+            constraintName: fk_events_problem_id
+            onDelete: CASCADE
 
-        # solution
-        - createTable:
-            tableName: solution
-            columns:
-              - column:
-                  name: id
-                  type: UUID
-                  constraints:
-                    primaryKey: true
-                    nullable: false
-              - column:
-                  name: parent_id
-                  type: UUID
-                  constraints:
-                    referencedTableName: solution
-                    referencedColumnNames: id
-                    foreignKeyName: fk_solution_parent
-              - column:
-                  name: run_id
-                  type: UUID
-                  constraints:
-                    nullable: false
-                    referencedTableName: evolution_run
-                    referencedColumnNames: id
-                    foreignKeyName: fk_solution_run
-              - column:
-                  name: problem_id
-                  type: UUID
-                  constraints:
-                    nullable: false
-                    referencedTableName: evolution_problem
-                    referencedColumnNames: id
-                    foreignKeyName: fk_solution_problem
-              - column:
-                  name: date_created
-                  type: TIMESTAMPTZ
-                  defaultValueComputed: NOW()
-                  constraints:
-                    nullable: false
-              - column:
-                  name: solution
-                  type: JSONB
-              - column:
-                  name: fitness
-                  type: JSONB
-              - column:
-                  name: metadata
-                  type: JSONB
-
-        # Indexes
+  - changeSet:
+      id: 20250915-5-create-indexes
+      author: openevolve
+      changes:
         - createIndex:
-            tableName: evolution_run
+            tableName: events
+            indexName: idx_events_problem_id
             columns:
               - column:
                   name: problem_id
-            indexName: idx_run_problem
         - createIndex:
-            tableName: evolution_state
+            tableName: events
+            indexName: idx_events_date_created
             columns:
               - column:
-                  name: run_id
-            indexName: idx_state_run
-        - createIndex:
-            tableName: solution
-            columns:
-              - column:
-                  name: run_id
-            indexName: idx_solution_run
-        - createIndex:
-            tableName: solution
-            columns:
-              - column:
-                  name: parent_id
-            indexName: idx_solution_parent
+                  name: date_created
+        - sql:
+            dbms: postgresql
+            sql: "CREATE INDEX idx_events_payload_gin ON events USING GIN (payload);"
+        - sql:
+            dbms: postgresql
+            sql: "CREATE INDEX idx_problem_config_gin ON problem USING GIN (config);"

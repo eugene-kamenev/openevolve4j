@@ -10,6 +10,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.data.relational.core.query.Criteria;
 import org.springframework.data.relational.core.query.Query;
+import org.springframework.data.relational.core.sql.SqlIdentifier;
 import org.springframework.validation.Errors;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,10 +20,11 @@ import reactor.core.publisher.Mono;
 
 public class DbHandler<E> {
 
-	final R2dbcEntityTemplate tmpl;
-	final Class<E> entityClass;
-	final Map<String, Function<Object, Criteria>> entityFilters;
-	final Function<E, Errors> entityValidator;
+	protected final R2dbcEntityTemplate tmpl;
+	protected final Class<E> entityClass;
+	protected final Map<String, Function<Object, Criteria>> entityFilters;
+	protected final Function<E, Errors> entityValidator;
+	private SqlIdentifier idColumn;
 
 	public DbHandler(Class<E> entityClass, R2dbcEntityTemplate tmpl,
 			Map<String, Function<Object, Criteria>> entityFilters, Function<E, Errors> entityValidator) {
@@ -30,6 +32,7 @@ public class DbHandler<E> {
 		this.entityClass = entityClass;
 		this.entityFilters = entityFilters;
 		this.entityValidator = entityValidator;
+		
 	}
 
 	public DbHandler(Class<E> entityClass, R2dbcEntityTemplate tmpl, ObjectMapper mapper) {
@@ -41,11 +44,23 @@ public class DbHandler<E> {
 	}
 
 	public Flux<E> findAllPaginated(Query query, Sort sort, long offset, int limit) {
-		return tmpl.select(query.sort(sort).offset(offset).limit(limit), entityClass);
+		var q = query;
+		if (sort != null) {
+			q = q.sort(sort);
+		}
+		if (offset >= 0) {
+			q = q.offset(offset);
+		}
+		if (limit > 0) {
+			q = q.limit(limit);
+		}
+		return tmpl.select(q, entityClass);
 	}
 
 	public Mono<E> findById(Serializable id) {
-		var idColumn = tmpl.getConverter().getMappingContext().getPersistentEntity(entityClass).getIdColumn();
+		if (idColumn == null) {
+			this.idColumn = tmpl.getConverter().getMappingContext().getPersistentEntity(entityClass).getIdColumn();
+		}
 		return tmpl.selectOne(Query.query(Criteria.where(idColumn.getReference()).is(id)), entityClass);
 	}
 
