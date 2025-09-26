@@ -1,60 +1,41 @@
-# Parent Solutions
+{research}
 
-```xml
+# Baseline Attempts
+
 {parents}
-```
 
-# Current Solution
-
-```xml
 {solution}
-```
 
 # Task
 {task}
 
-# Output Format (STRICT)
+# Output Format
 
-Produce one or more SEARCH/REPLACE diffs. Do not include any prose outside the diff blocks.
-
-Each diff block has this exact structure:
+You MUST use **FIND/REPLACE** difference format shown below to indicate changes:
 
 ```
-<path-to-file>
-<<<<<<< SEARCH
-<original code to replace — copied verbatim from Current Solution>
+filename
+<<<<<<< FIND
+# Original code to find and replace (must match exactly)
 =======
-<new code to replace the SEARCH block>
+# New replacement code
 >>>>>>> REPLACE
 ```
+## DIFF FORMAT RULES:
 
-Rules:
-- Path
-  - Use the actual file path relative to the repository root (e.g., src/pkg/file.py). No placeholders like path_to_solution/file.
-  - For multiple edits in the same file, repeat the path header for each block.
-- SEARCH block
-  - Must match a single contiguous region in the Current Solution exactly, including whitespace, indentation, and comments. Copy-paste from {solution}.
-  - Do not include ellipses, regex, wildcards, or additional context not present in the original.
-  - If the SEARCH text occurs multiple times, make it unique by expanding the SEARCH region to include surrounding unique lines (still copied verbatim).
-- REPLACE block
-  - Contains only the replacement for the SEARCH region. Do not include unchanged surrounding code here.
-  - Preserve formatting style (indentation, line endings) consistent with the file.
-- Multiple changes
-  - Output multiple diff blocks, one per replaced region. You may target multiple files.
-- Insertions and deletions using SEARCH/REPLACE
-  - Insertion: replace a small anchor region with “anchor + new code”.
-    - Example pattern: SEARCH contains a unique anchor; REPLACE repeats the anchor followed by inserted lines.
-  - Deletion: replace the exact block to remove with an empty replacement (leave the REPLACE section empty or a single blank line).
-- Constraints
-  - Do not rewrite entire files; keep changes minimal and targeted.
-  - No explanations, comments, or extra text outside the fenced diff blocks.
+Every *FIND/REPLACE* edit must use this format:
+  1. Actual source code file name
+  2. The start of search block: <<<<<<< FIND
+  3. A contiguous chunk of lines to search for in the existing source code (including whitespace, comments etc.)
+  4. The dividing line: =======
+  5. The lines to replace into the source code
+  6. The end of the replace block: >>>>>>> REPLACE
 
-## Examples
+Example of valid diff format:
 
-Single change in one file:
 ```
 example.py
-<<<<<<< SEARCH
+<<<<<<< FIND
 for i in range(m):
     for j in range(p):
         for k in range(n):
@@ -68,61 +49,36 @@ for i in range(m):
 >>>>>>> REPLACE
 ```
 
-Multiple changes in the same file (repeat the header):
-```
-app/service.py
-<<<<<<< SEARCH
-def add(a, b):
-    return a + b
-=======
-def add(a, b):
-    # Use safer numeric addition
-    return (a or 0) + (b or 0)
->>>>>>> REPLACE
-app/service.py
-<<<<<<< SEARCH
-def mul(a, b):
-    return a*b
-=======
-def mul(a, b):
-    # Guard against None
-    return (a or 0) * (b or 0)
->>>>>>> REPLACE
-```
+## Critical Requirements
 
-Insertion via anchor expansion:
-```
-config.yaml
-<<<<<<< SEARCH
-features:
-  - login
-  - search
-=======
-features:
-  - login
-  - search
-  - analytics
->>>>>>> REPLACE
-```
+- Output only diff blocks: produce a sequence of valid FIND/REPLACE blocks and nothing else (no prose, no backticks around blocks, no explanations inline).
+- Small, surgical edits: propose multiple small diffs instead of a single large one. Never replace an entire file or large unrelated regions.
+- Exact-match search: each FIND block must match the current code exactly, including whitespace.
+- Minimal scope: include only the lines that truly need to change; do not include surrounding lines that are unchanged, and do not reformat unrelated code.
+- Split large changes: if a logical change spans many lines, split it into several small, self-contained diffs ordered from top-to-bottom within the file.
+- One file per header: when many changes are in the same file, repeat the filename for each separate FIND/REPLACE block.
 
-Deletion (remove a block by replacing with nothing):
-```
-main.c
-<<<<<<< SEARCH
-printf("DEBUG: entering main\n");
-=======
->>>>>>> REPLACE
-```
+## Why Small Diffs
 
-# Guidelines
-- Each SEARCH must match exact code in the Current Solution file, including whitespace. Prefer copying from {solution}.
-- If a SEARCH is ambiguous (multiple matches), expand it to include nearby unique lines.
-- Prefer changes that improve algorithmic metrics.
-- Do not rewrite the entire program. Provide multiple diffs if needed.
+Small, exact diffs are safer and more reliable: they avoid accidental deletions, reduce merge conflicts, minimize hallucinations, and ensure patches apply cleanly in CI. Large full-file replacements are brittle and often fail to match the live code, breaking the patching process.
 
-# Checklist (before you output)
-- [ ] File paths are correct and real.
-- [ ] Every SEARCH is verbatim from Current Solution and unique.
-- [ ] REPLACE contains only new/changed lines (no extra context).
-- [ ] No prose outside fenced diff blocks.
-- [ ] Minimal, targeted changes aligned with the Task.
+## Size Guidance
+
+- Aim for ≤ 15–20 lines per FIND or REPLACE section.
+- MUST split any change that would exceed ~25 lines into multiple targeted diffs.
+
+## Do/Don’t
+
+- Do: replace only the edited function body or the few lines around an insertion point.
+- Do: add imports or constants by replacing a small, exact anchor line with that line plus the new line(s).
+- Don’t: reformat files, reorder imports, or change whitespace outside the edited lines.
+- Don’t: include license headers or unrelated refactors in the same submission.
+
+## Submission Checklist
+
+- Only diff blocks are output, no extra text.
+- Every FIND block matches existing code exactly.
+- No full-file replacements; changes are minimal and focused.
+- Multiple small diffs are used where appropriate and ordered top-to-bottom.
+
+You MUST focus on targeted improvements suggesting multiple small diffs instead of large ones, for the reasons above. Each FIND section must exactly match code in the current program.

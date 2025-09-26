@@ -12,25 +12,6 @@ import java.util.regex.Pattern;
 public class CodeParsingUtils {
 
     /**
-     * Represents an evolve block with start line, end line, and content
-     */
-    public static class EvolveBlock {
-        private final int startLine;
-        private final int endLine;
-        private final String content;
-
-        public EvolveBlock(int startLine, int endLine, String content) {
-            this.startLine = startLine;
-            this.endLine = endLine;
-            this.content = content;
-        }
-
-        public int getStartLine() { return startLine; }
-        public int getEndLine() { return endLine; }
-        public String getContent() { return content; }
-    }
-
-    /**
      * Represents a diff block with search and replace text
      */
     public static class DiffBlock {
@@ -43,41 +24,18 @@ public class CodeParsingUtils {
             this.searchText = searchText;
             this.replaceText = replaceText;
         }
-        public String getFile() { return file; }
-        public String getSearchText() { return searchText; }
-        public String getReplaceText() { return replaceText; }
-    }
 
-    /**
-     * Parse evolve blocks from code
-     *
-     * @param code Source code with evolve blocks
-     * @return List of evolve blocks
-     */
-    public static List<EvolveBlock> parseEvolveBlocks(String code) {
-        String[] lines = code.split("\n");
-        List<EvolveBlock> blocks = new ArrayList<>();
-
-        boolean inBlock = false;
-        int startLine = -1;
-        List<String> blockContent = new ArrayList<>();
-
-        for (int i = 0; i < lines.length; i++) {
-            String line = lines[i];
-            
-            if (line.contains("# EVOLVE-BLOCK-START") || line.contains("// EVOLVE-BLOCK-START")) {
-                inBlock = true;
-                startLine = i;
-                blockContent.clear();
-            } else if ((line.contains("# EVOLVE-BLOCK-END") || line.contains("// EVOLVE-BLOCK-END")) && inBlock) {
-                inBlock = false;
-                blocks.add(new EvolveBlock(startLine, i, String.join("\n", blockContent)));
-            } else if (inBlock) {
-                blockContent.add(line);
-            }
+        public String getFile() {
+            return file;
         }
 
-        return blocks;
+        public String getSearchText() {
+            return searchText;
+        }
+
+        public String getReplaceText() {
+            return replaceText;
+        }
     }
 
     /**
@@ -91,39 +49,236 @@ public class CodeParsingUtils {
         if (diffBlocks == null || diffBlocks.isEmpty()) {
             return originalCode;
         }
-        String[] originalLines = originalCode.split("\n");
-        List<String> resultLines = new ArrayList<>();
-        for (String line : originalLines) {
-            resultLines.add(line);
-        }
+
+        // Preserve original line ending style if CRLF was present
+        boolean hadCRLF = originalCode.contains("\r\n");
+
+        // Normalize to \n for consistent processing
+        String content = normalizeNewlines(originalCode);
+
         for (DiffBlock diffBlock : diffBlocks) {
-            String[] searchLines = diffBlock.getSearchText().split("\n");
-            String[] replaceLines = diffBlock.getReplaceText().split("\n");
+            String searchText = diffBlock.getSearchText() == null ? ""
+                    : normalizeNewlines(diffBlock.getSearchText());
+            String replaceText = diffBlock.getReplaceText() == null ? ""
+                    : normalizeNewlines(diffBlock.getReplaceText());
 
-            // Find where the search pattern starts in the original code
-            for (int i = 0; i <= resultLines.size() - searchLines.length; i++) {
-                boolean matches = true;
-                for (int j = 0; j < searchLines.length; j++) {
-                    if (!resultLines.get(i + j).equals(searchLines[j])) {
-                        matches = false;
-                        break;
-                    }
-                }
+            if (searchText.isEmpty()) {
+                // Nothing to match; skip this block
+                continue;
+            }
 
-                if (matches) {
-                    // Replace the matched section
-                    for (int j = 0; j < searchLines.length; j++) {
-                        resultLines.remove(i);
+            // 1) Exact substring replacement (first occurrence) for multi-line blocks
+            Optional<String> updated = tryMultiLineExact(content, searchText, replaceText);
+            if (updated.isPresent()) {
+                content = updated.get();
+                continue;
+            }
+
+            // 1b) Single-line per-line replacement: drop indentation if line equals trimmed
+            updated = trySingleLinePerLine(content, searchText, replaceText);
+            if (updated.isPresent()) {
+                content = updated.get();
+                continue;
+            }
+
+            // 2) Contiguous line-based replacement allowing trailing whitespace differences only
+            String[] contentLinesArr = content.split("\n", -1);
+            List<String> contentLines = new ArrayList<>();
+            for (String l : contentLinesArr)
+                contentLines.add(l);
+            String[] searchLines = searchText.split("\n", -1);
+            String[] replaceLines = replaceText.split("\n", -1);
+
+            updated = tryContiguousWindow(contentLines, searchLines, replaceLines);
+            if (updated.isPresent()) {
+                content = updated.get();
+                continue;
+            }
+
+            // 3) Ordered (non-contiguous) match on trimmed lines: remove all matched lines and
+            // insert replacement
+            updated = tryOrderedNonContiguous(contentLines, searchLines, replaceLines);
+            if (updated.isPresent()) {
+                content = updated.get();
+                continue;
+            }
+
+            // 4) Anchor-based large block replacement: find first and last matching non-empty
+            // trimmed lines
+            updated = tryAnchorBased(contentLines, searchLines, replaceLines);
+            if (updated.isPresent()) {
+                content = updated.get();
+                continue;
+            }
+
+            // If no replacement, leave block as-is
+        }
+
+        // Restore CRLF if the original contained it
+        return restoreOriginalNewlines(content, hadCRLF);
+    }
+
+    private static Optional<String> tryMultiLineExact(String content, String searchText,
+            String replaceText) {
+        if (searchText.indexOf('\n') >= 0) {
+            int at = content.indexOf(searchText);
+            if (at >= 0) {
+                String out = content.substring(0, at) + replaceText
+                        + content.substring(at + searchText.length());
+                return Optional.of(out);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<String> trySingleLinePerLine(String content, String searchText,
+            String replaceText) {
+        if (searchText.indexOf('\n') < 0) {
+            String[] linesArr = content.split("\n", -1);
+            for (int li = 0; li < linesArr.length; li++) {
+                String line = linesArr[li];
+                int pos = line.indexOf(searchText);
+                if (pos >= 0) {
+                    if (line.trim().equals(searchText.trim())) {
+                        linesArr[li] = replaceText;
+                    } else {
+                        linesArr[li] = line.replace(searchText, replaceText);
                     }
-                    for (int j = 0; j < replaceLines.length; j++) {
-                        resultLines.add(i + j, replaceLines[j]);
-                    }
-                    break;
+                    return Optional.of(String.join("\n", linesArr));
                 }
             }
         }
+        return Optional.empty();
+    }
 
-        return String.join("\n", resultLines);
+    private static Optional<String> tryContiguousWindow(List<String> contentLines,
+            String[] searchLines, String[] replaceLines) {
+        int win = searchLines.length;
+        for (int i = 0; i <= contentLines.size() - win; i++) {
+            boolean allMatch = true;
+            for (int j = 0; j < win; j++) {
+                String a = rtrim(contentLines.get(i + j));
+                String b = rtrim(searchLines[j]);
+                if (!a.equals(b)) {
+                    allMatch = false;
+                    break;
+                }
+            }
+            if (allMatch) {
+                List<String> outLines = new ArrayList<>(contentLines);
+                for (int k = 0; k < win; k++)
+                    outLines.remove(i);
+                for (int k = 0; k < replaceLines.length; k++)
+                    outLines.add(i + k, replaceLines[k]);
+                return Optional.of(String.join("\n", outLines));
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<String> tryOrderedNonContiguous(List<String> contentLines,
+            String[] searchLines, String[] replaceLines) {
+        List<Integer> matchedIndices = new ArrayList<>();
+        int startIdx = 0;
+        for (String sLine : searchLines) {
+            String sTrim = sLine.trim();
+            int foundAt = -1;
+            for (int i = startIdx; i < contentLines.size(); i++) {
+                if (contentLines.get(i).trim().equals(sTrim)) {
+                    foundAt = i;
+                    break;
+                }
+            }
+            if (foundAt == -1) {
+                matchedIndices.clear();
+                break;
+            }
+            matchedIndices.add(foundAt);
+            startIdx = foundAt + 1;
+        }
+
+        if (!matchedIndices.isEmpty() && matchedIndices.size() == searchLines.length) {
+            List<String> outLines = new ArrayList<>(contentLines);
+            for (int k = matchedIndices.size() - 1; k >= 0; k--) {
+                int idx = matchedIndices.get(k);
+                outLines.remove(idx);
+            }
+            int insertPos = matchedIndices.get(0);
+            for (int j = 0; j < replaceLines.length; j++) {
+                outLines.add(insertPos + j, replaceLines[j]);
+            }
+            return Optional.of(String.join("\n", outLines));
+        }
+        return Optional.empty();
+    }
+
+    private static Optional<String> tryAnchorBased(List<String> contentLines, String[] searchLines,
+            String[] replaceLines) {
+        if (searchLines.length >= 10) { // modest threshold to avoid tiny accidental edits
+            int firstAnchor = -1;
+            for (String sLine : searchLines) {
+                String probe = sLine.trim();
+                if (probe.isEmpty())
+                    continue;
+                for (int i = 0; i < contentLines.size(); i++) {
+                    if (contentLines.get(i).trim().equals(probe)) {
+                        firstAnchor = i;
+                        break;
+                    }
+                }
+                if (firstAnchor != -1)
+                    break;
+            }
+            if (firstAnchor != -1) {
+                int lastAnchor = -1;
+                for (int si = searchLines.length - 1; si >= 0; si--) {
+                    String probe = searchLines[si].trim();
+                    if (probe.isEmpty())
+                        continue;
+                    for (int i = contentLines.size() - 1; i >= firstAnchor; i--) {
+                        if (contentLines.get(i).trim().equals(probe)) {
+                            lastAnchor = i;
+                            break;
+                        }
+                    }
+                    if (lastAnchor != -1)
+                        break;
+                }
+                if (lastAnchor != -1 && lastAnchor >= firstAnchor
+                        && (lastAnchor - firstAnchor) >= 5) {
+                    List<String> outLines = new ArrayList<>(contentLines);
+                    for (int i = lastAnchor; i >= firstAnchor; i--)
+                        outLines.remove(i);
+                    for (int j = 0; j < replaceLines.length; j++)
+                        outLines.add(firstAnchor + j, replaceLines[j]);
+                    return Optional.of(String.join("\n", outLines));
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static String normalizeNewlines(String s) {
+        return s.replace("\r\n", "\n");
+    }
+
+    private static String restoreOriginalNewlines(String s, boolean hadCRLF) {
+        return hadCRLF ? s.replace("\n", "\r\n") : s;
+    }
+
+    private static String rtrim(String s) {
+        if (s == null || s.isEmpty())
+            return s == null ? "" : s;
+        int i = s.length() - 1;
+        while (i >= 0) {
+            char c = s.charAt(i);
+            if (c == ' ' || c == '\t') {
+                i--;
+            } else {
+                break;
+            }
+        }
+        return s.substring(0, i + 1);
     }
 
     /**
@@ -134,37 +289,38 @@ public class CodeParsingUtils {
      */
     public static List<DiffBlock> extractChanges(String llmResponse, List<String> paths) {
         List<DiffBlock> diffBlocks = new ArrayList<>();
-        String pathString = "(" + String.join("|", paths) + ")";
-        Pattern diffPattern = Pattern.compile(
-            pathString + "\\s*<<<<<<<\\s*SEARCH\\s*\\n(.*?)=======\\n(.*?)>>>>>>>\\s*REPLACE",
-            Pattern.DOTALL
-        );
-        
+
+        // Quote each path to avoid regex metacharacters interfering (e.g., dots)
+        List<String> quoted = new ArrayList<>();
+        for (String p : paths) {
+            quoted.add(Pattern.quote(p));
+        }
+        String pathString = "(" + String.join("|", quoted) + ")";
+
+        Pattern diffPattern = Pattern.compile(pathString + // file path (captured)
+                "\\s*<<<<<<<\\s*.*?\\R" + // <<<<<<< (with optional label)
+                "(.*?)\\R" + // search block (group 2, multiline)
+                "=======\\s*\\R" + // ======= divider
+                "(.*?)\\R" + // replace block (group 3, multiline)
+                ">>>>>>>", // >>>>>>> (with optional label)
+                Pattern.DOTALL);
+
         Matcher matcher = diffPattern.matcher(llmResponse);
         while (matcher.find()) {
             String file = matcher.group(1);
-            String searchText = matcher.group(2).replaceAll("\\s+$", "");
-            String replaceText = matcher.group(3).replaceAll("\\s+$", "");
+            String searchText = matcher.group(2); // search section
+            String replaceText = matcher.group(3); // replace section
             diffBlocks.add(new DiffBlock(file, searchText, replaceText));
         }
 
         return diffBlocks;
     }
 
-    /**
-     * Extract a full rewrite from an LLM response
-     *
-     * @param llmResponse Response from the LLM
-     * @param language Programming language
-     * @return Extracted code or empty if not found
-     */
     public static Optional<String> parseFullRewrite(String llmResponse, String language) {
         // Try language-specific code block first
-        Pattern codeBlockPattern = Pattern.compile(
-            "```" + language + "\\n(.*?)```",
-            Pattern.DOTALL
-        );
-        
+        Pattern codeBlockPattern =
+                Pattern.compile("```" + language + "\\n(.*?)```", Pattern.DOTALL);
+
         Matcher matcher = codeBlockPattern.matcher(llmResponse);
         if (matcher.find()) {
             return Optional.of(matcher.group(1).strip());
@@ -179,147 +335,5 @@ public class CodeParsingUtils {
 
         // Fallback to plain text
         return Optional.of(llmResponse);
-    }
-
-    /**
-     * Create a human-readable summary of the diff
-     *
-     * @param diffBlocks List of diff blocks
-     * @return Summary string
-     */
-    public static String formatDiffSummary(List<DiffBlock> diffBlocks) {
-        List<String> summary = new ArrayList<>();
-
-        for (int i = 0; i < diffBlocks.size(); i++) {
-            DiffBlock diffBlock = diffBlocks.get(i);
-            String[] searchLines = diffBlock.getSearchText().strip().split("\n");
-            String[] replaceLines = diffBlock.getReplaceText().strip().split("\n");
-
-            String changeSummary;
-            if (searchLines.length == 1 && replaceLines.length == 1) {
-                changeSummary = String.format(
-                    "Change %d: '%s' to '%s'",
-                    i + 1, searchLines[0], replaceLines[0]
-                );
-            } else {
-                String searchSummary = searchLines.length > 1 ?
-                    searchLines.length + " lines" : searchLines[0];
-                String replaceSummary = replaceLines.length > 1 ?
-                    replaceLines.length + " lines" : replaceLines[0];
-                changeSummary = String.format(
-                    "Change %d: Replace %s with %s",
-                    i + 1, searchSummary, replaceSummary
-                );
-            }
-            summary.add(changeSummary);
-        }
-
-        return String.join("\n", summary);
-    }
-
-    /**
-     * Try to determine the language of a code snippet
-     *
-     * @param code Code snippet
-     * @return Detected language or "unknown"
-     */
-    public static String extractCodeLanguage(String code) {
-        // Python patterns
-        if (Pattern.compile("^(import|from|def|class)\\s", Pattern.MULTILINE).matcher(code).find()) {
-            return "python";
-        }
-        
-        // Java patterns
-        if (Pattern.compile("^(package|import java|public class)", Pattern.MULTILINE).matcher(code).find()) {
-            return "java";
-        }
-        
-        // C/C++ patterns
-        if (Pattern.compile("^(#include|int main|void main)", Pattern.MULTILINE).matcher(code).find()) {
-            return "cpp";
-        }
-        
-        // JavaScript patterns
-        if (Pattern.compile("^(function|var|let|const|console\\.log)", Pattern.MULTILINE).matcher(code).find()) {
-            return "javascript";
-        }
-        
-        // Rust patterns
-        if (Pattern.compile("^(module|fn|let mut|impl)", Pattern.MULTILINE).matcher(code).find()) {
-            return "rust";
-        }
-        
-        // SQL patterns
-        if (Pattern.compile("^(SELECT|CREATE TABLE|INSERT INTO)", Pattern.MULTILINE).matcher(code).find()) {
-            return "sql";
-        }
-
-        return "unknown";
-    }
-
-    /**
-     * Count lines of code (excluding empty lines and comments)
-     *
-     * @param code Source code
-     * @return Number of non-empty, non-comment lines
-     */
-    public static int countLinesOfCode(String code) {
-        String[] lines = code.split("\n");
-        int count = 0;
-        
-        for (String line : lines) {
-            String trimmed = line.trim();
-            if (!trimmed.isEmpty() &&
-                !trimmed.startsWith("//") &&
-                !trimmed.startsWith("#") &&
-                !trimmed.startsWith("*") &&
-                !trimmed.equals("/*") &&
-                !trimmed.equals("*/")) {
-                count++;
-            }
-        }
-        
-        return count;
-    }
-
-    /**
-     * Extract imports/dependencies from code
-     *
-     * @param code Source code
-     * @param language Programming language
-     * @return List of import statements
-     */
-    public static List<String> extractImports(String code, String language) {
-        List<String> imports = new ArrayList<>();
-        String[] lines = code.split("\n");
-        
-        for (String line : lines) {
-            String trimmed = line.trim();
-            
-            switch (language.toLowerCase()) {
-                case "python":
-                    if (trimmed.startsWith("import ") || trimmed.startsWith("from ")) {
-                        imports.add(trimmed);
-                    }
-                    break;
-                case "java":
-                    if (trimmed.startsWith("import ")) {
-                        imports.add(trimmed);
-                    }
-                    break;
-                case "javascript":
-                    if (trimmed.startsWith("import ") || trimmed.contains("require(")) {
-                        imports.add(trimmed);
-                    }
-                    break;
-                case "cpp":
-                    if (trimmed.startsWith("#include")) {
-                        imports.add(trimmed);
-                    }
-                    break;
-            }
-        }
-        
-        return imports;
     }
 }

@@ -1,108 +1,41 @@
 package openevolve.util;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
-import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.PromptTemplate;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.core.io.FileSystemResource;
+import org.springframework.retry.support.RetryTemplate;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class Util {
 
-	public static final <T> void writeJSONL(T object, ObjectMapper mapper, Path filePath) {
-		Objects.requireNonNull(object);
-		Objects.requireNonNull(mapper);
-		Objects.requireNonNull(filePath);
-		var writer = mapper.writer();
-		try (var outputStream = Files.newOutputStream(filePath,
-				Files.exists(filePath) ? StandardOpenOption.APPEND
-						: StandardOpenOption.CREATE)) {
-			outputStream.write(writer.writeValueAsString(object).getBytes());
-			outputStream.write('\n');
-		} catch (IOException e) {
-			throw new RuntimeException("Failed to write object to " + filePath, e);
-		}
-	}
-
-	public static final <T> List<T> readJSONL(ObjectMapper mapper, Path filePath,
-			TypeReference<T> type) {
-		Objects.requireNonNull(mapper);
-		Objects.requireNonNull(filePath);
-		if (!Files.exists(filePath)) {
-			return List.of();
-		}
-		var output = new ArrayList<T>();
-		try {
-			Files.lines(filePath).forEach(line -> {
-				try {
-					output.add(mapper.readValue(line, type));
-				} catch (JsonProcessingException e) {
-					System.err.println("Failed to parse line: " + line);
-				}
-			});
-		} catch (IOException t) {
-			throw new UncheckedIOException("Failed to read objects from " + filePath, t);
-		}
-		return output;
-	}
-
-	public static final <T> void save(T object, ObjectMapper mapper, Path filePath,
-			boolean overwrite) {
-		Objects.requireNonNull(object);
-		Objects.requireNonNull(mapper);
-		Objects.requireNonNull(filePath);
-		var writer = mapper.writerWithDefaultPrettyPrinter();
-		try (var outputStream = Files.newOutputStream(filePath,
-				overwrite ? StandardOpenOption.CREATE : StandardOpenOption.APPEND)) {
-			writer.writeValue(outputStream, object);
-		} catch (IOException e) {
-			throw new RuntimeException("Failed to save object to " + filePath, e);
-		}
-	}
-
-	public static final <T> T load(ObjectMapper mapper, Path filePath, TypeReference<T> type) {
-		if (!Files.exists(filePath)) {
-			return null;
-		}
-		try (var inputStream = Files.newInputStream(filePath)) {
-			return mapper.readValue(inputStream, type);
-		} catch (IOException e) {
-			return null;
-		}
-	}
-
-	public static double getDoubleScore(String key, Map<String, Object> metrics) {
-		if (metrics != null) {
-			var value = metrics.getOrDefault(key, Double.NEGATIVE_INFINITY);
-			if (value instanceof Number) {
-				return ((Number) value).doubleValue();
-			}
-		}
-		return Double.NEGATIVE_INFINITY;
-	}
-
-	public static double getAvgScore(Map<String, Object> metrics) {
-		return metrics.values().stream().filter(v -> v instanceof Number)
-				.mapToDouble(v -> ((Number) v).doubleValue()).average()
-				.orElse(Double.NaN);
+	public static ChatClient newChatClient(OpenAiChatOptions options, OpenAiApi openAiApi) {
+		var chatModel = OpenAiChatModel.builder().openAiApi(openAiApi)
+				.retryTemplate(RetryTemplate.builder().retryOn(Throwable.class)
+						.exponentialBackoff(Duration.ofSeconds(10), 2, Duration.ofSeconds(30))
+						.build())
+				.defaultOptions(options).build();
+		return ChatClient.builder(chatModel).build();
 	}
 
 	public static <T> T parseJSON(String json, ObjectMapper mapper, TypeReference<T> typeRef,
@@ -124,16 +57,7 @@ public class Util {
 		return found.get();
 	}
 
-	public static <T> T selfOrDefault(T self, T defaultValue) {
-		Objects.requireNonNull(defaultValue);
-		if (self == null || (self instanceof Collection col && col.isEmpty())
-				|| (self instanceof Map map && map.isEmpty())) {
-			return defaultValue;
-		}
-		return self;
-	}
-
-	public static Map<String, List<PromptTemplate>> templatesFromPath(Path promptsPath, Map<String, List<PromptTemplate>> defaults) {
+	public static Map<String, PromptTemplate> templatesFromPath(Path promptsPath, Map<String, PromptTemplate> defaults) {
 		if (promptsPath == null || !Files.exists(promptsPath)) {
 			return new HashMap<>(defaults);
 		}
@@ -159,7 +83,7 @@ public class Util {
 		for (var prompt : prompts.entrySet()) {
 			var fileName = prompt.getKey();
 			var templates = prompt.getValue();
-			result.put(fileName, templates);
+			result.put(fileName, templates.get(0));
 		}
 		return result;
 	}

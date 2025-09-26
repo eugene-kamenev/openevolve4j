@@ -37,3 +37,4 @@ out/
 .vscode/
 .github/
 node_modules/
+application-dev.yaml

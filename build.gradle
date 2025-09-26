@@ -32,6 +32,10 @@ allprojects {
         options.compilerArgs += ['-parameters']
     }
 
+	configurations.all {
+    	exclude group: 'org.springframework.ai', module: 'spring-ai-autoconfigure-model-openai'
+	}
+
 	dependencyManagement {
 		imports {
             mavenBom "org.springframework.boot:spring-boot-dependencies:${springBootVersion}"
